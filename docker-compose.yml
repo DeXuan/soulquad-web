@@ -1,0 +1,21 @@
+version: '3.8'
+services:
+  soulquad:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: soulquad-app
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+    volumes:
+      - ./server/db:/app/server/db
+    networks:
+      - soulquad-network
+
+networks:
+  soulquad-network:
+    driver: bridge

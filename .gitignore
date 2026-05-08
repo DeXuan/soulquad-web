@@ -27,3 +27,7 @@ npm-debug.log*
 .cache/
 .parcel-cache/
 .eslintcache
+
+# Deploy
+deploy/ssl/
+deploy/.env.production

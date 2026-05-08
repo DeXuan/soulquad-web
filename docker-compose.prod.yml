@@ -1,0 +1,53 @@
+# SoulQuad Docker Compose - 生产环境
+version: '3.8'
+
+services:
+  # 主应用
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: soulquad-app
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+    env_file:
+      - ./deploy/.env.production
+    volumes:
+      - soulquad-db:/app/server/db
+    networks:
+      - soulquad-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Nginx 反向代理
+  nginx:
+    image: nginx:alpine
+    container_name: soulquad-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./dist:/var/www/soulquad/dist:ro
+      - ./deploy/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - app
+    networks:
+      - soulquad-network
+
+volumes:
+  soulquad-db:
+    driver: local
+
+networks:
+  soulquad-network:
+    driver: bridge

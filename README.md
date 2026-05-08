@@ -85,6 +85,13 @@ soulquad-web/
 │   └── App.tsx        # 应用入口
 ├── server/            # 后端服务
 │   └── index.js       # Express + Socket.IO
+├── deploy/            # 部署配置
+│   ├── nginx.conf     # Nginx 配置
+│   ├── deploy.sh      # 部署脚本
+│   └── .env.production.example
+├── Dockerfile
+├── docker-compose.yml
+├── docker-compose.prod.yml
 ├── index.html
 ├── package.json
 └── vite.config.ts
@@ -118,6 +125,64 @@ npm run build
 
 ```bash
 npm run preview
+```
+
+## 部署指南
+
+### 方式一：Docker 部署（推荐）
+
+```bash
+# 构建并启动
+docker-compose -f docker-compose.prod.yml up -d
+
+# 查看状态
+docker-compose -f docker-compose.prod.yml ps
+
+# 查看日志
+docker-compose -f docker-compose.prod.yml logs -f
+```
+
+### 方式二：手动部署
+
+1. **上传项目到服务器**
+```bash
+scp -r ./soulquad-web root@your-server:/var/www/
+```
+
+2. **安装依赖并构建**
+```bash
+cd /var/www/soulquad-web
+npm install
+npm run build
+```
+
+3. **配置 Nginx**
+```bash
+sudo cp deploy/nginx.conf /etc/nginx/sites-available/soulquad
+sudo ln -sf /etc/nginx/sites-available/soulquad /etc/nginx/sites-enabled/
+sudo nginx -t && sudo systemctl restart nginx
+```
+
+4. **使用 PM2 启动后端**
+```bash
+npm install -g pm2
+pm2 start server/index.js --name soulquad
+pm2 save && pm2 startup
+```
+
+### 方式三：使用部署脚本
+
+```bash
+chmod +x deploy/deploy.sh
+./deploy/deploy.sh your-server-ip your-domain.com
+```
+
+### 生产环境变量
+
+复制 `deploy/.env.production.example` 为 `.env` 并修改：
+```bash
+cp deploy/.env.production.example .env
+nano .env  # 修改配置
 ```
 
 ## 配置说明
