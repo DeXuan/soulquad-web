@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import crypto from 'crypto';
-import { getDb, saveDb } from '../db/database.js';
+import { query, get, all } from '../db/database.js';
 
 export const momentRoutes = Router();
 
@@ -8,7 +8,7 @@ function getCurrentUserId(req) {
   return req.headers['x-user-id'];
 }
 
-momentRoutes.get('/', (req, res) => {
+momentRoutes.get('/', async (req, res) => {
   const userId = getCurrentUserId(req);
   if (!userId) {
     return res.status(401).json({ error: 'Unauthorized' });
@@ -18,63 +18,60 @@ momentRoutes.get('/', (req, res) => {
   const limit = parseInt(req.query.limit) || 20;
   const offset = (page - 1) * limit;
 
-  const db = getDb();
+  try {
+    const moments = await all(`
+      SELECT m.*, u.nickname, u.avatar_url, u.user_tier
+      FROM moments m
+      JOIN users u ON m.user_id = u.id
+      ORDER BY m.created_at DESC
+      LIMIT $1 OFFSET $2
+    `, [limit, offset]);
 
-  // Get moments with user info
-  const stmt = db.prepare(`
-    SELECT m.*, u.nickname, u.avatar_url, u.user_tier
-    FROM moments m
-    JOIN users u ON m.user_id = u.id
-    ORDER BY m.created_at DESC
-    LIMIT ? OFFSET ?
-  `);
-  stmt.bind([limit, offset]);
-  const moments = [];
-  while (stmt.step()) {
-    const m = stmt.getAsObject();
-    m.images = m.images_json ? JSON.parse(m.images_json) : [];
-    delete m.images_json;
-    moments.push(m);
+    const momentsWithImages = moments.map(m => ({
+      ...m,
+      images: m.images_json || [],
+      images_json: undefined
+    }));
+
+    const countResult = await get('SELECT COUNT(*) as count FROM moments');
+    const total = countResult.count;
+
+    res.json({ moments: momentsWithImages, hasMore: offset + moments.length < total });
+  } catch (err) {
+    console.error('Get moments error:', err);
+    res.status(500).json({ error: 'Failed to get moments' });
   }
-  stmt.free();
-
-  // Get total count
-  const countStmt = db.prepare('SELECT COUNT(*) as count FROM moments');
-  countStmt.step();
-  const total = countStmt.getAsObject().count;
-  countStmt.free();
-
-  res.json({ moments, hasMore: offset + moments.length < total });
 });
 
-momentRoutes.get('/user/:userId', (req, res) => {
+momentRoutes.get('/user/:userId', async (req, res) => {
   const userId = getCurrentUserId(req);
   if (!userId) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
-  const db = getDb();
-  const stmt = db.prepare(`
-    SELECT m.*, u.nickname, u.avatar_url, u.user_tier
-    FROM moments m
-    JOIN users u ON m.user_id = u.id
-    WHERE m.user_id = ?
-    ORDER BY m.created_at DESC
-  `);
-  stmt.bind([req.params.userId]);
-  const moments = [];
-  while (stmt.step()) {
-    const m = stmt.getAsObject();
-    m.images = m.images_json ? JSON.parse(m.images_json) : [];
-    delete m.images_json;
-    moments.push(m);
-  }
-  stmt.free();
+  try {
+    const moments = await all(`
+      SELECT m.*, u.nickname, u.avatar_url, u.user_tier
+      FROM moments m
+      JOIN users u ON m.user_id = u.id
+      WHERE m.user_id = $1
+      ORDER BY m.created_at DESC
+    `, [req.params.userId]);
 
-  res.json(moments);
+    const momentsWithImages = moments.map(m => ({
+      ...m,
+      images: m.images_json || [],
+      images_json: undefined
+    }));
+
+    res.json(momentsWithImages);
+  } catch (err) {
+    console.error('Get user moments error:', err);
+    res.status(500).json({ error: 'Failed to get user moments' });
+  }
 });
 
-momentRoutes.post('/', (req, res) => {
+momentRoutes.post('/', async (req, res) => {
   const userId = getCurrentUserId(req);
   if (!userId) {
     return res.status(401).json({ error: 'Unauthorized' });
@@ -85,127 +82,115 @@ momentRoutes.post('/', (req, res) => {
     return res.status(400).json({ error: 'Content, images or video required' });
   }
 
-  const db = getDb();
-  const id = crypto.randomUUID();
-  const now = new Date().toISOString();
+  if (content && content.length > 2000) {
+    return res.status(400).json({ error: 'Content too long (max 2000 chars)' });
+  }
+  if (location && location.length > 100) {
+    return res.status(400).json({ error: 'Location too long (max 100 chars)' });
+  }
 
-  const stmt = db.prepare(`
-    INSERT INTO moments (id, user_id, content, images_json, video_url, location, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `);
-  stmt.bind([id, userId, content || '', JSON.stringify(images || []), video_url || '', location || '', now]);
-  stmt.step();
-  stmt.free();
-  saveDb();
+  try {
+    const id = crypto.randomUUID();
+    const now = new Date().toISOString();
+    const imagesJson = JSON.stringify(images || []);
 
-  // Get the created moment with user info
-  const getStmt = db.prepare(`
-    SELECT m.*, u.nickname, u.avatar_url, u.user_tier
-    FROM moments m
-    JOIN users u ON m.user_id = u.id
-    WHERE m.id = ?
-  `);
-  getStmt.bind([id]);
-  getStmt.step();
-  const moment = getStmt.getAsObject();
-  getStmt.free();
+    await query(`
+      INSERT INTO moments (id, user_id, content, images_json, video_url, location, created_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
+    `, [id, userId, content || '', imagesJson, video_url || '', location || '', now]);
 
-  res.json(moment);
+    const moment = await get(`
+      SELECT m.*, u.nickname, u.avatar_url, u.user_tier
+      FROM moments m
+      JOIN users u ON m.user_id = u.id
+      WHERE m.id = $1
+    `, [id]);
+
+    res.json({
+      ...moment,
+      images: moment.images_json || [],
+      images_json: undefined
+    });
+  } catch (err) {
+    console.error('Create moment error:', err);
+    res.status(500).json({ error: 'Failed to create moment' });
+  }
 });
 
-momentRoutes.delete('/:momentId', (req, res) => {
+momentRoutes.delete('/:momentId', async (req, res) => {
   const userId = getCurrentUserId(req);
   if (!userId) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
-  const db = getDb();
+  try {
+    const moment = await get('SELECT user_id FROM moments WHERE id = $1', [req.params.momentId]);
 
-  // Check ownership
-  const checkStmt = db.prepare('SELECT user_id FROM moments WHERE id = ?');
-  checkStmt.bind([req.params.momentId]);
-  checkStmt.step();
-  const moment = checkStmt.getAsObject();
-  checkStmt.free();
+    if (!moment || moment.user_id !== userId) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
 
-  if (!moment || moment.user_id !== userId) {
-    return res.status(403).json({ error: 'Not authorized' });
+    await query('DELETE FROM moments WHERE id = $1', [req.params.momentId]);
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Delete moment error:', err);
+    res.status(500).json({ error: 'Failed to delete moment' });
   }
-
-  const deleteStmt = db.prepare('DELETE FROM moments WHERE id = ?');
-  deleteStmt.bind([req.params.momentId]);
-  deleteStmt.step();
-  deleteStmt.free();
-  saveDb();
-
-  res.json({ success: true });
 });
 
-momentRoutes.post('/:momentId/like', (req, res) => {
+momentRoutes.post('/:momentId/like', async (req, res) => {
   const userId = getCurrentUserId(req);
   if (!userId) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
-  const db = getDb();
+  try {
+    const existing = await get(`
+      SELECT id FROM moment_likes WHERE moment_id = $1 AND user_id = $2
+    `, [req.params.momentId, userId]);
 
-  // Toggle like
-  const checkStmt = db.prepare('SELECT id FROM moment_likes WHERE moment_id = ? AND user_id = ?');
-  checkStmt.bind([req.params.momentId, userId]);
-  checkStmt.step();
-  const existing = checkStmt.getAsObject();
-  checkStmt.free();
+    if (existing) {
+      await query('DELETE FROM moment_likes WHERE moment_id = $1 AND user_id = $2', [req.params.momentId, userId]);
+    } else {
+      await query(`
+        INSERT INTO moment_likes (id, moment_id, user_id, created_at)
+        VALUES ($1, $2, $3, $4)
+      `, [crypto.randomUUID(), req.params.momentId, userId, new Date().toISOString()]);
+    }
 
-  if (existing.id) {
-    // Unlike
-    const deleteStmt = db.prepare('DELETE FROM moment_likes WHERE moment_id = ? AND user_id = ?');
-    deleteStmt.bind([req.params.momentId, userId]);
-    deleteStmt.step();
-    deleteStmt.free();
-  } else {
-    // Like
-    const insertStmt = db.prepare('INSERT INTO moment_likes (id, moment_id, user_id, created_at) VALUES (?, ?, ?, ?)');
-    insertStmt.bind([crypto.randomUUID(), req.params.momentId, userId, new Date().toISOString()]);
-    insertStmt.step();
-    insertStmt.free();
+    const countResult = await get('SELECT COUNT(*) as count FROM moment_likes WHERE moment_id = $1', [req.params.momentId]);
+
+    res.json({ liked: !existing, like_count: countResult.count });
+  } catch (err) {
+    console.error('Like moment error:', err);
+    res.status(500).json({ error: 'Failed to like moment' });
   }
-  saveDb();
-
-  // Get like count
-  const countStmt = db.prepare('SELECT COUNT(*) as count FROM moment_likes WHERE moment_id = ?');
-  countStmt.bind([req.params.momentId]);
-  countStmt.step();
-  const likeCount = countStmt.getAsObject().count;
-  countStmt.free();
-
-  res.json({ liked: !existing.id, like_count: likeCount });
 });
 
-momentRoutes.get('/:momentId/comments', (req, res) => {
+momentRoutes.get('/:momentId/comments', async (req, res) => {
   const userId = getCurrentUserId(req);
   if (!userId) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
-  const db = getDb();
-  const stmt = db.prepare(`
-    SELECT c.*, u.nickname, u.avatar_url
-    FROM moment_comments c
-    JOIN users u ON c.user_id = u.id
-    WHERE c.moment_id = ?
-    ORDER BY c.created_at ASC
-  `);
-  stmt.bind([req.params.momentId]);
-  const comments = [];
-  while (stmt.step()) {
-    comments.push(stmt.getAsObject());
-  }
-  stmt.free();
+  try {
+    const comments = await all(`
+      SELECT c.*, u.nickname, u.avatar_url
+      FROM moment_comments c
+      JOIN users u ON c.user_id = u.id
+      WHERE c.moment_id = $1
+      ORDER BY c.created_at ASC
+    `, [req.params.momentId]);
 
-  res.json(comments);
+    res.json(comments);
+  } catch (err) {
+    console.error('Get comments error:', err);
+    res.status(500).json({ error: 'Failed to get comments' });
+  }
 });
 
-momentRoutes.post('/:momentId/comments', (req, res) => {
+momentRoutes.post('/:momentId/comments', async (req, res) => {
   const userId = getCurrentUserId(req);
   if (!userId) {
     return res.status(401).json({ error: 'Unauthorized' });
@@ -215,31 +200,29 @@ momentRoutes.post('/:momentId/comments', (req, res) => {
   if (!content) {
     return res.status(400).json({ error: 'Content required' });
   }
+  if (content.length > 500) {
+    return res.status(400).json({ error: 'Comment too long (max 500 chars)' });
+  }
 
-  const db = getDb();
-  const id = crypto.randomUUID();
-  const now = new Date().toISOString();
+  try {
+    const id = crypto.randomUUID();
+    const now = new Date().toISOString();
 
-  const stmt = db.prepare(`
-    INSERT INTO moment_comments (id, moment_id, user_id, content, created_at)
-    VALUES (?, ?, ?, ?, ?)
-  `);
-  stmt.bind([id, req.params.momentId, userId, content, now]);
-  stmt.step();
-  stmt.free();
-  saveDb();
+    await query(`
+      INSERT INTO moment_comments (id, moment_id, user_id, content, created_at)
+      VALUES ($1, $2, $3, $4, $5)
+    `, [id, req.params.momentId, userId, content, now]);
 
-  // Get the created comment with user info
-  const getStmt = db.prepare(`
-    SELECT c.*, u.nickname, u.avatar_url
-    FROM moment_comments c
-    JOIN users u ON c.user_id = u.id
-    WHERE c.id = ?
-  `);
-  getStmt.bind([id]);
-  getStmt.step();
-  const comment = getStmt.getAsObject();
-  getStmt.free();
+    const comment = await get(`
+      SELECT c.*, u.nickname, u.avatar_url
+      FROM moment_comments c
+      JOIN users u ON c.user_id = u.id
+      WHERE c.id = $1
+    `, [id]);
 
-  res.json(comment);
+    res.json(comment);
+  } catch (err) {
+    console.error('Add comment error:', err);
+    res.status(500).json({ error: 'Failed to add comment' });
+  }
 });

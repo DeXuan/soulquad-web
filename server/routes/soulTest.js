@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getDb, saveDb } from '../db/database.js';
+import { query, get } from '../db/database.js';
 
 export const soulTestRoutes = Router();
 
@@ -7,7 +7,7 @@ function getCurrentUserId(req) {
   return req.headers['x-user-id'];
 }
 
-soulTestRoutes.post('/', (req, res) => {
+soulTestRoutes.post('/', async (req, res) => {
   const userId = getCurrentUserId(req);
   if (!userId) {
     return res.status(401).json({ error: 'Unauthorized' });
@@ -19,29 +19,24 @@ soulTestRoutes.post('/', (req, res) => {
     return res.status(400).json({ error: 'MBTI and soul quadrant are required' });
   }
 
-  const db = getDb();
+  try {
+    await query(`
+      UPDATE users
+      SET mbti = $1,
+          soul_quadrant = $2,
+          values_json = $3,
+          interests_json = $4,
+          profile_completed = true,
+          updated_at = $5
+      WHERE id = $6
+    `, [mbti, soul_quadrant, JSON.stringify(values || []), JSON.stringify(interests || []), new Date().toISOString(), userId]);
 
-  const stmt = db.prepare(`
-    UPDATE users
-    SET mbti = ?,
-        soul_quadrant = ?,
-        values_json = ?,
-        interests_json = ?,
-        profile_completed = 1
-    WHERE id = ?
-  `);
-  stmt.bind([mbti, soul_quadrant, JSON.stringify(values || []), JSON.stringify(interests || []), userId]);
-  stmt.step();
-  stmt.free();
+    const user = await get('SELECT * FROM users WHERE id = $1', [userId]);
 
-  saveDb();
-
-  const userStmt = db.prepare('SELECT * FROM users WHERE id = ?');
-  userStmt.bind([userId]);
-  userStmt.step();
-  const user = userStmt.getAsObject();
-  userStmt.free();
-
-  const { password_hash, ...safeUser } = user;
-  res.json(safeUser);
+    const { password_hash, ...safeUser } = user;
+    res.json(safeUser);
+  } catch (err) {
+    console.error('Soul test error:', err);
+    res.status(500).json({ error: 'Failed to save soul test' });
+  }
 });

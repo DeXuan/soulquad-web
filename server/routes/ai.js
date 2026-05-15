@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import Anthropic from '@anthropic-ai/sdk';
-import { getDb, saveDb } from '../db/database.js';
+import { query, get } from '../db/database.js';
 import { MBTI_TYPES, QUADRANT_INFO } from './mbti-data.js';
 
 export const aiRoutes = Router();
@@ -9,52 +9,36 @@ const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY || ''
 });
 
-function getUserById(db, id) {
-  const stmt = db.prepare('SELECT * FROM users WHERE id = ?');
-  stmt.bind([id]);
-  if (stmt.step()) {
-    const user = stmt.getAsObject();
-    stmt.free();
-    return user;
-  }
-  stmt.free();
-  return null;
-}
-
 aiRoutes.post('/soul-description', async (req, res) => {
   const userId = req.headers['x-user-id'];
   if (!userId) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
-  const db = getDb();
-  const user = getUserById(db, userId);
-
-  if (!user) {
-    return res.status(404).json({ error: 'User not found' });
-  }
-
-  if (!user.mbti || !user.soul_quadrant) {
-    return res.status(400).json({ error: 'Please complete soul test first' });
-  }
-
-  const mbtiInfo = MBTI_TYPES[user.mbti] || { name: '未知', description: '' };
-  const quadrantInfo = QUADRANT_INFO[user.soul_quadrant] || { name: '未知', emoji: '' };
-  const values = JSON.parse(user.values_json || '[]');
-  const interests = JSON.parse(user.interests_json || '[]');
-
-  if (!process.env.ANTHROPIC_API_KEY) {
-    const mockDescription = generateMockDescription(user, mbtiInfo, quadrantInfo, values, interests);
-    const updStmt = db.prepare('UPDATE users SET ai_description = ? WHERE id = ?');
-    updStmt.bind([mockDescription.description, userId]);
-    updStmt.step();
-    updStmt.free();
-    saveDb();
-    return res.json(mockDescription);
-  }
-
   try {
-    const prompt = `你是一个专业的性格分析师。请为以下用户生成一份个性化的灵魂描述：
+    const user = await get('SELECT * FROM users WHERE id = $1', [userId]);
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    if (!user.mbti || !user.soul_quadrant) {
+      return res.status(400).json({ error: 'Please complete soul test first' });
+    }
+
+    const mbtiInfo = MBTI_TYPES[user.mbti] || { name: '未知', description: '' };
+    const quadrantInfo = QUADRANT_INFO[user.soul_quadrant] || { name: '未知', emoji: '' };
+    const values = typeof user.values_json === 'string' ? JSON.parse(user.values_json || '[]') : (user.values_json || []);
+    const interests = typeof user.interests_json === 'string' ? JSON.parse(user.interests_json || '[]') : (user.interests_json || []);
+
+    if (!process.env.ANTHROPIC_API_KEY) {
+      const mockDescription = generateMockDescription(user, mbtiInfo, quadrantInfo, values, interests);
+      await query('UPDATE users SET ai_description = $1 WHERE id = $2', [mockDescription.description, userId]);
+      return res.json(mockDescription);
+    }
+
+    try {
+      const prompt = `你是一个专业的性格分析师。请为以下用户生成一份个性化的灵魂描述：
 
 用户信息：
 - MBTI性格类型：${user.mbti} (${mbtiInfo.name})
@@ -73,51 +57,47 @@ aiRoutes.post('/soul-description', async (req, res) => {
 请用中文回复，格式如下：
 {"traits": "...", "idealPartner": "...", "advice": "..."}`;
 
-    const message = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 500,
-      messages: [{
-        role: 'user',
-        content: prompt
-      }]
-    });
+      const message = await anthropic.messages.create({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 500,
+        messages: [{
+          role: 'user',
+          content: prompt
+        }]
+      });
 
-    const responseText = message.content[0].type === 'text' ? message.content[0].text : '';
+      const responseText = message.content[0].type === 'text' ? message.content[0].text : '';
 
-    let result;
-    try {
-      result = JSON.parse(responseText);
-    } catch {
-      result = {
-        traits: responseText.slice(0, 50),
-        idealPartner: responseText.slice(50, 110),
-        advice: responseText.slice(110, 160)
-      };
+      let result;
+      try {
+        result = JSON.parse(responseText);
+      } catch {
+        result = {
+          traits: responseText.slice(0, 50),
+          idealPartner: responseText.slice(50, 110),
+          advice: responseText.slice(110, 160)
+        };
+      }
+
+      const fullDescription = `【灵魂特质】${result.traits}\n\n【理想伴侣】${result.idealPartner}\n\n【相处建议】${result.advice}`;
+
+      await query('UPDATE users SET ai_description = $1 WHERE id = $2', [fullDescription, userId]);
+
+      res.json({
+        description: fullDescription,
+        traits: result.traits,
+        idealPartner: result.idealPartner,
+        advice: result.advice
+      });
+    } catch (error) {
+      console.error('AI API error:', error);
+      const mockDescription = generateMockDescription(user, mbtiInfo, quadrantInfo, values, interests);
+      await query('UPDATE users SET ai_description = $1 WHERE id = $2', [mockDescription.description, userId]);
+      res.json(mockDescription);
     }
-
-    const fullDescription = `【灵魂特质】${result.traits}\n\n【理想伴侣】${result.idealPartner}\n\n【相处建议】${result.advice}`;
-
-    const updStmt = db.prepare('UPDATE users SET ai_description = ? WHERE id = ?');
-    updStmt.bind([fullDescription, userId]);
-    updStmt.step();
-    updStmt.free();
-    saveDb();
-
-    res.json({
-      description: fullDescription,
-      traits: result.traits,
-      idealPartner: result.idealPartner,
-      advice: result.advice
-    });
-  } catch (error) {
-    console.error('AI API error:', error);
-    const mockDescription = generateMockDescription(user, mbtiInfo, quadrantInfo, values, interests);
-    const updStmt = db.prepare('UPDATE users SET ai_description = ? WHERE id = ?');
-    updStmt.bind([mockDescription.description, userId]);
-    updStmt.step();
-    updStmt.free();
-    saveDb();
-    res.json(mockDescription);
+  } catch (err) {
+    console.error('Soul description error:', err);
+    res.status(500).json({ error: 'Failed to generate description' });
   }
 });
 

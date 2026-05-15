@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import crypto from 'crypto';
-import { getDb, saveDb } from '../db/database.js';
+import { query, get, all } from '../db/database.js';
 
 export const notificationRoutes = Router();
 
@@ -8,106 +8,98 @@ function getCurrentUserId(req) {
   return req.headers['x-user-id'];
 }
 
-notificationRoutes.get('/', (req, res) => {
+notificationRoutes.get('/', async (req, res) => {
   const userId = getCurrentUserId(req);
   if (!userId) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
-  const db = getDb();
-  const stmt = db.prepare(`
-    SELECT * FROM notifications
-    WHERE user_id = ?
-    ORDER BY created_at DESC
-    LIMIT 50
-  `);
-  stmt.bind([userId]);
+  try {
+    const notifications = await all(`
+      SELECT * FROM notifications
+      WHERE user_id = $1
+      ORDER BY created_at DESC
+      LIMIT 50
+    `, [userId]);
 
-  const notifications = [];
-  while (stmt.step()) {
-    const n = stmt.getAsObject();
-    notifications.push({
+    res.json(notifications.map(n => ({
       ...n,
-      read: !!n.read,
-      data: n.data ? JSON.parse(n.data) : {}
-    });
+      is_read: !!n.is_read,
+      data: n.data || {}
+    })));
+  } catch (err) {
+    console.error('Get notifications error:', err);
+    res.status(500).json({ error: 'Failed to get notifications' });
   }
-  stmt.free();
-
-  res.json(notifications);
 });
 
-notificationRoutes.get('/unread-count', (req, res) => {
+notificationRoutes.get('/unread-count', async (req, res) => {
   const userId = getCurrentUserId(req);
   if (!userId) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
-  const db = getDb();
-  const stmt = db.prepare(`
-    SELECT COUNT(*) as count FROM notifications
-    WHERE user_id = ? AND read = 0
-  `);
-  stmt.bind([userId]);
-  stmt.step();
-  const result = stmt.getAsObject();
-  stmt.free();
+  try {
+    const result = await get(`
+      SELECT COUNT(*) as count FROM notifications
+      WHERE user_id = $1 AND is_read = false
+    `, [userId]);
 
-  res.json({ count: result.count });
+    res.json({ count: result.count });
+  } catch (err) {
+    console.error('Get unread count error:', err);
+    res.status(500).json({ error: 'Failed to get unread count' });
+  }
 });
 
-notificationRoutes.post('/mark-read/:id', (req, res) => {
+notificationRoutes.post('/mark-read/:id', async (req, res) => {
   const userId = getCurrentUserId(req);
   if (!userId) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
-  const db = getDb();
-  const stmt = db.prepare(`
-    UPDATE notifications
-    SET read = 1
-    WHERE id = ? AND user_id = ?
-  `);
-  stmt.bind([req.params.id, userId]);
-  stmt.step();
-  stmt.free();
-  saveDb();
+  try {
+    await query(`
+      UPDATE notifications
+      SET is_read = true
+      WHERE id = $1 AND user_id = $2
+    `, [req.params.id, userId]);
 
-  res.json({ success: true });
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Mark read error:', err);
+    res.status(500).json({ error: 'Failed to mark notification as read' });
+  }
 });
 
-notificationRoutes.post('/mark-all-read', (req, res) => {
+notificationRoutes.post('/mark-all-read', async (req, res) => {
   const userId = getCurrentUserId(req);
   if (!userId) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
-  const db = getDb();
-  const stmt = db.prepare(`
-    UPDATE notifications
-    SET read = 1
-    WHERE user_id = ? AND read = 0
-  `);
-  stmt.bind([userId]);
-  stmt.step();
-  stmt.free();
-  saveDb();
+  try {
+    await query(`
+      UPDATE notifications
+      SET is_read = true
+      WHERE user_id = $1 AND is_read = false
+    `, [userId]);
 
-  res.json({ success: true });
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Mark all read error:', err);
+    res.status(500).json({ error: 'Failed to mark all notifications as read' });
+  }
 });
 
-export function createNotification(db, userId, type, title, content, data = {}) {
+export async function createNotification(userId, type, title, content, data = {}) {
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
 
-  const stmt = db.prepare(`
+  await query(`
     INSERT INTO notifications (id, user_id, type, title, content, data, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `);
-  stmt.bind([id, userId, type, title, content, JSON.stringify(data), now]);
-  stmt.step();
-  stmt.free();
+    VALUES ($1, $2, $3, $4, $5, $6, $7)
+  `, [id, userId, type, title, content, JSON.stringify(data), now]);
 
-  saveDb();
   return id;
 }

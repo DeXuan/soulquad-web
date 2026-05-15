@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import crypto from 'crypto';
-import { getDb, saveDb } from '../db/database.js';
+import { query, get, all } from '../db/database.js';
 import { createNotification } from './notifications.js';
 
 export const matchRoutes = Router();
@@ -24,13 +24,13 @@ function calculateSoulIndex(userA, userB) {
     score += 15;
   }
 
-  const valuesA = JSON.parse(userA.values_json || '[]');
-  const valuesB = JSON.parse(userB.values_json || '[]');
+  const valuesA = typeof userA.values_json === 'string' ? JSON.parse(userA.values_json || '[]') : (userA.values_json || []);
+  const valuesB = typeof userB.values_json === 'string' ? JSON.parse(userB.values_json || '[]') : (userB.values_json || []);
   const commonValues = valuesA.filter(v => valuesB.includes(v));
   score += commonValues.length * 3;
 
-  const interestsA = JSON.parse(userA.interests_json || '[]');
-  const interestsB = JSON.parse(userB.interests_json || '[]');
+  const interestsA = typeof userA.interests_json === 'string' ? JSON.parse(userA.interests_json || '[]') : (userA.interests_json || []);
+  const interestsB = typeof userB.interests_json === 'string' ? JSON.parse(userB.interests_json || '[]') : (userB.interests_json || []);
   const commonInterests = interestsA.filter(i => interestsB.includes(i));
   score += commonInterests.length * 2;
 
@@ -52,89 +52,69 @@ function canSeeProfile(viewer, target) {
   return tierRank[viewerTier] >= tierRank[targetTier] - 1;
 }
 
-function getAllMatches(db) {
-  const stmt = db.prepare('SELECT * FROM matches');
-  const results = [];
-  while (stmt.step()) {
-    results.push(stmt.getAsObject());
-  }
-  stmt.free();
-  return results;
-}
-
-function getAllUsers(db) {
-  const stmt = db.prepare('SELECT * FROM users WHERE profile_completed = 1');
-  const results = [];
-  while (stmt.step()) {
-    results.push(stmt.getAsObject());
-  }
-  stmt.free();
-  return results;
-}
-
-matchRoutes.get('/', (req, res) => {
+matchRoutes.get('/', async (req, res) => {
   const userId = getCurrentUserId(req);
   if (!userId) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
-  const db = getDb();
-  const allMatches = getAllMatches(db);
-  const userMatches = allMatches.filter(m => m.oder_a_id === userId || m.oder_b_id === userId);
+  try {
+    const userMatches = await all(`
+      SELECT * FROM matches
+      WHERE oder_a_id = $1 OR oder_b_id = $1
+    `, [userId]);
 
-  res.json(userMatches.map(m => ({
-    ...m,
-    user_a_liked: !!m.user_a_liked,
-    user_b_liked: !!m.user_b_liked,
-    mutual_liked: !!m.mutual_liked
-  })));
+    res.json(userMatches.map(m => ({
+      ...m,
+      user_a_liked: !!m.user_a_liked,
+      user_b_liked: !!m.user_b_liked,
+      mutual_liked: !!m.mutual_liked
+    })));
+  } catch (err) {
+    console.error('Get matches error:', err);
+    res.status(500).json({ error: 'Failed to get matches' });
+  }
 });
 
-matchRoutes.get('/potential', (req, res) => {
+matchRoutes.get('/potential', async (req, res) => {
   const userId = getCurrentUserId(req);
   if (!userId) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
-  const db = getDb();
-
-  // Get current user
-  const userStmt = db.prepare('SELECT * FROM users WHERE id = ?');
-  userStmt.bind([userId]);
-  userStmt.step();
-  const currentUser = userStmt.getAsObject();
-  userStmt.free();
-
-  // Get all matches involving this user
-  const allMatches = getAllMatches(db);
-  const userMatches = allMatches.filter(m => m.oder_a_id === userId || m.oder_b_id === userId);
-
-  // Get IDs of users already shown/liked
-  const passedUserIds = new Set();
-  userMatches.forEach(m => {
-    if (m.oder_a_id === userId) {
-      passedUserIds.add(m.oder_b_id);
+  try {
+    const currentUser = await get('SELECT * FROM users WHERE id = $1', [userId]);
+    if (!currentUser) {
+      return res.status(404).json({ error: 'User not found' });
     }
-    if (m.oder_b_id === userId) {
-      passedUserIds.add(m.oder_a_id);
-    }
-  });
 
-  // Get all users who completed profile
-  const allUsers = getAllUsers(db);
+    const userMatches = await all(`
+      SELECT * FROM matches
+      WHERE oder_a_id = $1 OR oder_b_id = $1
+    `, [userId]);
 
-  // Filter out current user and already shown users
-  const potentialUsers = allUsers.filter(u =>
-    u.id !== userId && !passedUserIds.has(u.id)
-  );
+    const passedUserIds = new Set();
+    userMatches.forEach(m => {
+      if (m.oder_a_id === userId) passedUserIds.add(m.oder_b_id);
+      if (m.oder_b_id === userId) passedUserIds.add(m.oder_a_id);
+    });
 
-  // Apply tier visibility filter
-  const visibleUsers = potentialUsers.filter(u => canSeeProfile(currentUser, u));
+    const allUsers = await all('SELECT * FROM users WHERE profile_completed = true');
 
-  res.json(visibleUsers.slice(0, 20));
+    const potentialUsers = allUsers.filter(u =>
+      u.id !== userId && !passedUserIds.has(u.id)
+    );
+
+    const visibleUsers = potentialUsers.filter(u => canSeeProfile(currentUser, u));
+
+    res.json(visibleUsers.slice(0, 20));
+  } catch (err) {
+    console.error('Get potential matches error:', err);
+    res.status(500).json({ error: 'Failed to get potential matches' });
+  }
 });
 
-matchRoutes.post('/like/:userId', (req, res) => {
+matchRoutes.post('/like/:userId', async (req, res) => {
   const userId = getCurrentUserId(req);
   const targetId = req.params.userId;
 
@@ -142,119 +122,84 @@ matchRoutes.post('/like/:userId', (req, res) => {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
-  const db = getDb();
+  try {
+    const targetUser = await get('SELECT * FROM users WHERE id = $1', [targetId]);
+    const currentUser = await get('SELECT * FROM users WHERE id = $1', [userId]);
 
-  const targetStmt = db.prepare('SELECT * FROM users WHERE id = ?');
-  targetStmt.bind([targetId]);
-  targetStmt.step();
-  const targetUser = targetStmt.getAsObject();
-  targetStmt.free();
-
-  const currentStmt = db.prepare('SELECT * FROM users WHERE id = ?');
-  currentStmt.bind([userId]);
-  currentStmt.step();
-  const currentUser = currentStmt.getAsObject();
-  currentStmt.free();
-
-  const allMatches = getAllMatches(db);
-  let match = allMatches.find(m =>
-    (m.oder_a_id === userId && m.oder_b_id === targetId) ||
-    (m.oder_a_id === targetId && m.oder_b_id === userId)
-  );
-
-  const soulIndex = calculateSoulIndex(currentUser, targetUser);
-  let matchedNow = false;
-
-  if (!match) {
-    const matchId = crypto.randomUUID();
-    const now = new Date().toISOString();
-
-    const insertStmt = db.prepare(`
-      INSERT INTO matches (id, oder_a_id, oder_b_id, soulmate_index, user_a_liked, user_b_liked, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `);
-    insertStmt.bind([matchId, userId, targetId, soulIndex, 1, 0, now]);
-    insertStmt.step();
-    insertStmt.free();
-
-    createNotification(db, targetId, 'like', '有人喜欢你', `${currentUser.nickname} 对你发送了喜欢`, { userId });
-
-    const getMatchStmt = db.prepare('SELECT * FROM matches WHERE id = ?');
-    getMatchStmt.bind([matchId]);
-    getMatchStmt.step();
-    match = getMatchStmt.getAsObject();
-    getMatchStmt.free();
-  } else {
-    const isUserA = match.oder_a_id === userId;
-    const updateStmt = db.prepare(`UPDATE matches SET ${isUserA ? 'user_a_liked' : 'user_b_liked'} = 1 WHERE id = ?`);
-    updateStmt.bind([match.id]);
-    updateStmt.step();
-    updateStmt.free();
-
-    const otherLiked = isUserA ? match.user_b_liked : match.user_a_liked;
-    if (otherLiked) {
-      const matchUpdateStmt = db.prepare('UPDATE matches SET mutual_liked = 1, matched_at = ? WHERE id = ?');
-      matchUpdateStmt.bind([new Date().toISOString(), match.id]);
-      matchUpdateStmt.step();
-      matchUpdateStmt.free();
-      match.mutual_liked = 1;
-      matchedNow = true;
+    if (!targetUser || !currentUser) {
+      return res.status(404).json({ error: 'User not found' });
     }
-  }
 
-  if (matchedNow) {
-    const updateCountStmt = db.prepare('UPDATE users SET match_count = match_count + 1 WHERE id = ?');
-    updateCountStmt.bind([userId]);
-    updateCountStmt.step();
-    updateCountStmt.free();
+    const existingMatch = await get(`
+      SELECT * FROM matches
+      WHERE (oder_a_id = $1 AND oder_b_id = $2) OR (oder_a_id = $2 AND oder_b_id = $1)
+    `, [userId, targetId]);
 
-    updateCountStmt.bind([targetId]);
-    updateCountStmt.step();
-    updateCountStmt.free();
+    const soulIndex = calculateSoulIndex(currentUser, targetUser);
+    let matchedNow = false;
+    let match = existingMatch;
 
-    const updatedCurrentStmt = db.prepare('SELECT * FROM users WHERE id = ?');
-    updatedCurrentStmt.bind([userId]);
-    updatedCurrentStmt.step();
-    const updatedCurrent = updatedCurrentStmt.getAsObject();
-    updatedCurrentStmt.free();
+    if (!match) {
+      const matchId = crypto.randomUUID();
+      const now = new Date().toISOString();
 
-    const updatedTargetStmt = db.prepare('SELECT * FROM users WHERE id = ?');
-    updatedTargetStmt.bind([targetId]);
-    updatedTargetStmt.step();
-    const updatedTarget = updatedTargetStmt.getAsObject();
-    updatedTargetStmt.free();
+      await query(`
+        INSERT INTO matches (id, oder_a_id, oder_b_id, soulmate_index, user_a_liked, user_b_liked, created_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
+      `, [matchId, userId, targetId, soulIndex, true, false, now]);
 
-    const newTierCurrent = calculateTier(updatedCurrent.soul_score, updatedCurrent.match_count, updatedCurrent.activity_score);
-    const newTierTarget = calculateTier(updatedTarget.soul_score, updatedTarget.match_count, updatedTarget.activity_score);
+      await createNotification(targetId, 'like', '有人喜欢你', `${currentUser.nickname} 对你发送了喜欢`, { userId });
 
-    const tierUpdateStmt = db.prepare('UPDATE users SET user_tier = ? WHERE id = ?');
+      match = await get('SELECT * FROM matches WHERE id = $1', [matchId]);
+    } else {
+      const isUserA = match.oder_a_id === userId;
+      const field = isUserA ? 'user_a_liked' : 'user_b_liked';
 
-    tierUpdateStmt.bind([newTierCurrent, userId]);
-    tierUpdateStmt.step();
-    tierUpdateStmt.free();
+      await query(`UPDATE matches SET ${field} = true WHERE id = $1`, [match.id]);
 
-    tierUpdateStmt.bind([newTierTarget, targetId]);
-    tierUpdateStmt.step();
-    tierUpdateStmt.free();
+      const otherLiked = isUserA ? match.user_b_liked : match.user_a_liked;
+      if (otherLiked) {
+        await query('UPDATE matches SET mutual_liked = true, matched_at = $1 WHERE id = $2', [new Date().toISOString(), match.id]);
+        match.mutual_liked = true;
+        matchedNow = true;
+      }
 
-    createNotification(db, userId, 'match', '匹配成功！', `你与 ${targetUser.nickname} 成功匹配`, { matchId: match.id, userId: targetId });
-    createNotification(db, targetId, 'match', '匹配成功！', `你与 ${currentUser.nickname} 成功匹配`, { matchId: match.id, userId });
-  }
-
-  saveDb();
-
-  res.json({
-    matched: !!match.mutual_liked,
-    match: {
-      ...match,
-      user_a_liked: !!match.user_a_liked,
-      user_b_liked: !!match.user_b_liked,
-      mutual_liked: !!match.mutual_liked
+      match = await get('SELECT * FROM matches WHERE id = $1', [match.id]);
     }
-  });
+
+    if (matchedNow) {
+      await query('UPDATE users SET match_count = match_count + 1 WHERE id = $1', [userId]);
+      await query('UPDATE users SET match_count = match_count + 1 WHERE id = $1', [targetId]);
+
+      const updatedCurrent = await get('SELECT * FROM users WHERE id = $1', [userId]);
+      const updatedTarget = await get('SELECT * FROM users WHERE id = $1', [targetId]);
+
+      const newTierCurrent = calculateTier(updatedCurrent.soul_score, updatedCurrent.match_count, updatedCurrent.activity_score);
+      const newTierTarget = calculateTier(updatedTarget.soul_score, updatedTarget.match_count, updatedTarget.activity_score);
+
+      await query('UPDATE users SET user_tier = $1 WHERE id = $2', [newTierCurrent, userId]);
+      await query('UPDATE users SET user_tier = $1 WHERE id = $2', [newTierTarget, targetId]);
+
+      await createNotification(userId, 'match', '匹配成功！', `你与 ${targetUser.nickname} 成功匹配`, { matchId: match.id, userId: targetId });
+      await createNotification(targetId, 'match', '匹配成功！', `你与 ${currentUser.nickname} 成功匹配`, { matchId: match.id, userId });
+    }
+
+    res.json({
+      matched: !!match.mutual_liked,
+      match: {
+        ...match,
+        user_a_liked: !!match.user_a_liked,
+        user_b_liked: !!match.user_b_liked,
+        mutual_liked: !!match.mutual_liked
+      }
+    });
+  } catch (err) {
+    console.error('Like error:', err);
+    res.status(500).json({ error: 'Failed to process like' });
+  }
 });
 
-matchRoutes.post('/pass/:userId', (req, res) => {
+matchRoutes.post('/pass/:userId', async (req, res) => {
   const userId = getCurrentUserId(req);
   const targetId = req.params.userId;
 
