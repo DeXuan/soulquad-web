@@ -529,6 +529,7 @@ input, textarea, select {
 .soul-card {
   width: 100%;
   max-width: 380px;
+  min-height: 620px;
   background: var(--glass-bg);
   backdrop-filter: blur(20px);
   border: 1px solid var(--border);
@@ -545,7 +546,7 @@ input, textarea, select {
 
 .soul-card-header {
   position: relative;
-  height: 180px;
+  height: 360px;
   background: var(--gradient-primary);
   overflow: hidden;
 }
@@ -562,11 +563,11 @@ input, textarea, select {
 
 .soul-card-avatar {
   position: absolute;
-  bottom: -40px;
+  bottom: -50px;
   left: 50%;
   transform: translateX(-50%);
-  width: 90px;
-  height: 90px;
+  width: 100px;
+  height: 100px;
   border-radius: 50%;
   border: 4px solid var(--bg-primary);
   background: var(--bg-card);
@@ -577,6 +578,7 @@ input, textarea, select {
   font-weight: 700;
   box-shadow: var(--shadow-md);
   z-index: 10;
+  overflow: hidden;
 }
 
 .soul-card-body {

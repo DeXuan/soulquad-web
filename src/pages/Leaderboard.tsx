@@ -135,10 +135,11 @@ export function Leaderboard() {
                       width: '50px',
                       height: '50px',
                       fontSize: '1.25rem',
-                      background: user.avatar_data ? `url(${user.avatar_data}) center/cover` : tierInfo.color
+                      background: user.avatar_data ? `url(${user.avatar_data}) center/cover` : user.avatar_url ? `url(${user.avatar_url}) center/cover` : tierInfo.color,
+                      overflow: 'hidden'
                     }}
                   >
-                    {!user.avatar_data && user.nickname[0]}
+                    {!user.avatar_data && !user.avatar_url && user.nickname[0]}
                   </div>
 
                   <div style={{ flex: 1 }}>
@@ -265,15 +266,18 @@ export function Leaderboard() {
                       height: '80px',
                       borderRadius: '50%',
                       margin: '0 auto 1rem',
-                      background: selectedUser.avatar_data ? `url(${selectedUser.avatar_data}) center/cover` : 'var(--gradient-primary)',
+                      background: selectedUser.avatar_data ? `url(${selectedUser.avatar_data}) center/cover` : selectedUser.avatar_url ? `url(${selectedUser.avatar_url}) center/cover` : 'var(--gradient-primary)',
+                      backgroundSize: 'cover',
+                      backgroundPosition: 'center',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
                       fontSize: '2rem',
-                      fontWeight: 600
+                      fontWeight: 600,
+                      overflow: 'hidden'
                     }}
                   >
-                    {!selectedUser.avatar_data && selectedUser.nickname[0]}
+                    {!selectedUser.avatar_data && !selectedUser.avatar_url && selectedUser.nickname[0]}
                   </div>
                   <h2 style={{ marginBottom: '0.25rem' }}>{selectedUser.nickname}</h2>
                   <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>

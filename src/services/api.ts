@@ -1,7 +1,7 @@
 import { User, AuthResponse, Match, Message, Notification, Moment, Comment } from '../types';
 
-const API_BASE = '/api';
-const MOCK_MODE = true; // Set to false when backend is ready
+const API_BASE = 'http://localhost:3001/api';
+const MOCK_MODE = false; // Set to false when backend is ready
 
 // Mock data storage for moments
 const getMockMoments = (): Moment[] => {
@@ -195,6 +195,7 @@ export interface LeaderboardUser {
   id: string;
   nickname: string;
   avatar_data: string;
+  avatar_url: string;
   mbti: string;
   soul_quadrant: string;
   soul_score: number;

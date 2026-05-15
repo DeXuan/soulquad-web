@@ -162,7 +162,7 @@ userRoutes.get('/leaderboard', (req, res) => {
   }
 
   let query = `
-    SELECT id, nickname, avatar_data, mbti, soul_quadrant, soul_score, user_tier, match_count,
+    SELECT id, nickname, avatar_data, avatar_url, mbti, soul_quadrant, soul_score, user_tier, match_count,
            (SELECT COUNT(*) FROM matches WHERE oder_a_id = users.id OR oder_b_id = users.id AND mutual_liked = 1) as like_count
     FROM users
     WHERE profile_completed = 1
@@ -190,7 +190,7 @@ userRoutes.get('/tier/leaderboard', (req, res) => {
   const tier = req.query.tier || 'all';
 
   let query = `
-    SELECT id, nickname, avatar_data, mbti, soul_quadrant, soul_score, user_tier, match_count,
+    SELECT id, nickname, avatar_data, avatar_url, mbti, soul_quadrant, soul_score, user_tier, match_count,
            (SELECT COUNT(*) FROM matches WHERE (oder_a_id = users.id OR oder_b_id = users.id) AND mutual_liked = 1) as like_count
     FROM users
     WHERE profile_completed = 1

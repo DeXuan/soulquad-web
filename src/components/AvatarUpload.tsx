@@ -50,14 +50,14 @@ export function AvatarUpload({ currentAvatar, onUpload }: AvatarUploadProps) {
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }}>
       <div
         style={{
-          width: '120px',
-          height: '120px',
+          width: '240px',
+          height: '240px',
           borderRadius: '50%',
           background: preview ? `url(${preview}) center/cover` : 'linear-gradient(135deg, var(--primary), var(--secondary))',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          fontSize: '3rem',
+          fontSize: '6rem',
           color: 'white',
           cursor: 'pointer',
           position: 'relative',

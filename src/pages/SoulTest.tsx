@@ -183,6 +183,18 @@ export function SoulTest() {
         </p>
 
         <div style={{
+          background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(236, 72, 153, 0.1))',
+          border: '1px solid rgba(99, 102, 241, 0.3)',
+          borderRadius: '12px',
+          padding: '1rem',
+          marginBottom: '2rem'
+        }}>
+          <p style={{ color: 'var(--primary)', fontSize: '0.9375rem', fontWeight: 500, margin: 0 }}>
+            💡 答题越多，人物画像越丰满，更容易匹配到契合的人
+          </p>
+        </div>
+
+        <div style={{
           background: 'var(--bg-card)',
           borderRadius: '16px',
           padding: '1.5rem',
@@ -192,7 +204,7 @@ export function SoulTest() {
           <h3 style={{ marginBottom: '1rem', fontSize: '1rem' }}>测试内容</h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
             {[
-              { icon: '🧠', text: 'MBTI性格测试（4题）' },
+              { icon: '🧠', text: `MBTI性格测试（${MBTI_QUESTIONS.length}题）` },
               { icon: '💎', text: '核心价值观（选5个）' },
               { icon: '🎯', text: '兴趣爱好（选5个）' },
               { icon: '📝', text: '基本信息（选填）' }
@@ -214,7 +226,7 @@ export function SoulTest() {
         </button>
 
         <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginTop: '1.5rem' }}>
-          预计用时 2-3 分钟
+          预计用时 3-5 分钟
         </p>
       </div>
     </div>

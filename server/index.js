@@ -3,6 +3,8 @@ import cors from 'cors';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import crypto from 'crypto';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
 import { initDb, getDb } from './db/database.js';
 import { authRoutes } from './routes/auth.js';
 import { userRoutes } from './routes/users.js';
@@ -12,12 +14,16 @@ import { aiRoutes } from './routes/ai.js';
 import { notificationRoutes, createNotification } from './routes/notifications.js';
 import { soulTestRoutes } from './routes/soulTest.js';
 import { cityRoutes } from './routes/cities.js';
+import { momentRoutes } from './routes/moments.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 const app = express();
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
   cors: {
-    origin: 'http://localhost:5173',
+    origin: '*',
     methods: ['GET', 'POST']
   }
 });
@@ -40,6 +46,21 @@ app.use('/api/ai', aiRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/soul-test', soulTestRoutes);
 app.use('/api/cities', cityRoutes);
+app.use('/api/moments', momentRoutes);
+
+// Health check
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// Serve frontend static files in production
+const distPath = join(__dirname, '..', 'dist');
+app.use(express.static(distPath));
+app.use((req, res) => {
+  if (!req.path.startsWith('/api') && !req.path.startsWith('/socket.io')) {
+    res.sendFile(join(distPath, 'index.html'));
+  }
+});
 
 // Socket.io connection handling
 const connectedUsers = new Map();
@@ -93,5 +114,5 @@ io.on('connection', (socket) => {
 const PORT = process.env.PORT || 3001;
 
 httpServer.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`SoulQuad server running on http://localhost:${PORT}`);
 });

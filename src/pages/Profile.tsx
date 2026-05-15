@@ -606,6 +606,7 @@ export function Profile() {
 
 // Likes Section Component
 function LikesSection() {
+  const navigate = useNavigate();
   const [likes, setLikes] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -651,18 +652,18 @@ function LikesSection() {
     <div style={{ marginBottom: '1.5rem' }}>
       <h3 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '1rem' }}>我喜欢的人</h3>
       {likes.map(user => (
-        <div key={user.id} className="card" style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '0.75rem', padding: '1rem' }}>
+        <div key={user.id} className="card" style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '0.75rem', padding: '1rem', cursor: 'pointer' }} onClick={() => navigate(`/profile/${user.id}`)}>
           <div style={{
             width: '50px',
             height: '50px',
             borderRadius: '12px',
-            background: 'var(--gradient-primary)',
+            background: user.avatar_data ? `url(${user.avatar_data}) center/cover no-repeat` : 'var(--gradient-primary)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             fontSize: '1.25rem'
           }}>
-            {user.nickname[0]}
+            {!user.avatar_data && user.nickname[0]}
           </div>
           <div style={{ flex: 1 }}>
             <div style={{ fontWeight: 600 }}>{user.nickname}</div>

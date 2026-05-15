@@ -79,6 +79,90 @@ export const MBTI_QUESTIONS: MBTIQuestion[] = [
     question: "你倾向于：",
     optionA: { text: "按时完成任务", type: "J" },
     optionB: { text: "最后时刻再处理", type: "P" }
+  },
+  {
+    id: 13,
+    question: "当别人提出批评时，你更可能：",
+    optionA: { text: "分析批评是否合理", type: "T" },
+    optionB: { text: "体会批评背后的情绪", type: "F" }
+  },
+  {
+    id: 14,
+    question: "你通常更喜欢：",
+    optionA: { text: "按照计划安排时间", type: "J" },
+    optionB: { text: "随遇而安，保持弹性", type: "P" }
+  },
+  {
+    id: 15,
+    question: "你更擅长：",
+    optionA: { text: "处理眼前的实际问题", type: "S" },
+    optionB: { text: "发现新的可能与创意", type: "N" }
+  },
+  {
+    id: 16,
+    question: "在亲密关系中，你更倾向于：",
+    optionA: { text: "直接说出你的需求", type: "E" },
+    optionB: { text: "通过关心表达你的情感", type: "I" }
+  },
+  {
+    id: 17,
+    question: "你更享受哪种旅行方式：",
+    optionA: { text: "攻略详细的观光行程", type: "J" },
+    optionB: { text: "说走就走的自由之旅", type: "P" }
+  },
+  {
+    id: 18,
+    question: "当需要做重大决定时，你更依赖：",
+    optionA: { text: "深入的分析和推理", type: "T" },
+    optionB: { text: "内心的直觉和感受", type: "F" }
+  },
+  {
+    id: 19,
+    question: "你更喜欢什么样的工作环境：",
+    optionA: { text: "安静独立的空间", type: "I" },
+    optionB: { text: "热闹有互动的氛围", type: "E" }
+  },
+  {
+    id: 20,
+    question: "阅读时你更偏爱：",
+    optionA: { text: "纪实类和知识性内容", type: "S" },
+    optionB: { text: "科幻小说和奇幻故事", type: "N" }
+  },
+  {
+    id: 21,
+    question: "面对规则时，你通常会：",
+    optionA: { text: "严格遵守既定规则", type: "J" },
+    optionB: { text: "根据情况灵活变通", type: "P" }
+  },
+  {
+    id: 22,
+    question: "你更容易被什么吸引：",
+    optionA: { text: "优美的文字和表达", type: "N" },
+    optionB: { text: "真实的数据和事实", type: "S" }
+  },
+  {
+    id: 23,
+    question: "与朋友发生分歧时，你通常会：",
+    optionA: { text: "理性讨论找出解决方案", type: "T" },
+    optionB: { text: "换位思考维护和谐关系", type: "F" }
+  },
+  {
+    id: 24,
+    question: "空闲时间你更想：",
+    optionA: { text: "学习提升自己", type: "I" },
+    optionB: { text: "和朋友一起出去玩", type: "E" }
+  },
+  {
+    id: 25,
+    question: "你更喜欢的生活节奏是：",
+    optionA: { text: "规律稳定的日常", type: "J" },
+    optionB: { text: "充满变化和惊喜", type: "P" }
+  },
+  {
+    id: 26,
+    question: "当你面对压力时，你倾向于：",
+    optionA: { text: "制定计划逐步解决", type: "J" },
+    optionB: { text: "随遇而安顺其自然", type: "P" }
   }
 ];
 

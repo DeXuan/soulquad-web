@@ -129,7 +129,28 @@ npm run preview
 
 ## 部署指南
 
-### 方式一：Docker 部署（推荐）
+### 方式一：Windows 单机运行（推荐）
+
+```bash
+# 打包发布版本
+npm run package
+
+# 打包后的文件在 release/SoulQuad 目录
+```
+
+或在已构建的项目中直接双击 `启动SoulQuad.bat`
+
+**发布包内容：**
+```
+SoulQuad/
+├── dist/           # 前端编译文件
+├── server/         # 后端服务
+├── node_modules/    # 依赖
+├── package.json     # 包配置
+└── 启动SoulQuad.bat  # 一键启动脚本
+```
+
+### 方式二：Docker 部署（推荐）
 
 ```bash
 # 构建并启动
@@ -142,7 +163,7 @@ docker-compose -f docker-compose.prod.yml ps
 docker-compose -f docker-compose.prod.yml logs -f
 ```
 
-### 方式二：手动部署
+### 方式三：手动部署
 
 1. **上传项目到服务器**
 ```bash
@@ -170,7 +191,7 @@ pm2 start server/index.js --name soulquad
 pm2 save && pm2 startup
 ```
 
-### 方式三：使用部署脚本
+### 方式四：使用部署脚本
 
 ```bash
 chmod +x deploy/deploy.sh

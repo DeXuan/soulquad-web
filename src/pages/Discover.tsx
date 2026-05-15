@@ -224,19 +224,26 @@ export function Discover() {
           </span>
         </div>
 
-        <div className="soul-card" style={{ maxWidth: '100%', borderRadius: '16px' }}>
-          <div className="soul-card-header" style={{
+        <div className="soul-card" style={{ maxWidth: '430px', borderRadius: '16px', overflow: 'hidden' }}>
+          <div style={{
+            position: 'relative',
+            height: '75vh',
+            minHeight: '500px',
+            maxHeight: '700px',
             background: currentUser.soul_quadrant === 'explorer' ? 'linear-gradient(135deg, #f59e0b, #f97316)' :
                         currentUser.soul_quadrant === 'builder' ? 'linear-gradient(135deg, #22c55e, #16a34a)' :
                         currentUser.soul_quadrant === 'artist' ? 'linear-gradient(135deg, #ec4899, #d946ef)' :
                         'linear-gradient(135deg, #6366f1, #8b5cf6)'
           }}>
-            <div className="soul-card-avatar" style={{
-              background: 'var(--bg-card)',
-              color: 'var(--text-primary)'
-            }}>
-              {currentUser.nickname[0]}
-            </div>
+            <img
+              src={currentUser.avatar_url}
+              alt={currentUser.nickname}
+              style={{
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover'
+              }}
+            />
           </div>
 
           <div className="soul-card-body" style={{ padding: '24px 16px 16px' }}>
