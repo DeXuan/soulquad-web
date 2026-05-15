@@ -84,7 +84,7 @@ userRoutes.put('/profile', async (req, res) => {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
-  const { nickname, age, gender, bio, avatar_url, avatar_data, city, height, education, has_house, has_car, purpose, mode } = req.body;
+  const { nickname, age, gender, bio, avatar_url, avatar_data, city, height, education, occupation, annual_income, has_house, has_car, purpose, mode } = req.body;
 
   if (nickname !== undefined && (nickname.length < 1 || nickname.length > 50)) {
     return res.status(400).json({ error: 'Nickname must be 1-50 characters' });
@@ -118,6 +118,8 @@ userRoutes.put('/profile', async (req, res) => {
   if (city !== undefined) { updates.push(`city = $${paramIndex++}`); values.push(city); }
   if (height !== undefined) { updates.push(`height = $${paramIndex++}`); values.push(height); }
   if (education !== undefined) { updates.push(`education = $${paramIndex++}`); values.push(education); }
+  if (occupation !== undefined) { updates.push(`occupation = $${paramIndex++}`); values.push(occupation); }
+  if (annual_income !== undefined) { updates.push(`annual_income = $${paramIndex++}`); values.push(annual_income); }
   if (has_house !== undefined) { updates.push(`has_house = $${paramIndex++}`); values.push(has_house); }
   if (has_car !== undefined) { updates.push(`has_car = $${paramIndex++}`); values.push(has_car); }
   if (purpose !== undefined) { updates.push(`purpose = $${paramIndex++}`); values.push(purpose); }
@@ -135,7 +137,7 @@ userRoutes.put('/profile', async (req, res) => {
     await query(`UPDATE users SET ${updates.join(', ')} WHERE id = $${paramIndex}`, values);
 
     const user = await get('SELECT * FROM users WHERE id = $1', [currentUser.id]);
-    res.json(sanitizeUser(user));
+    res.json({ ...sanitizeUser(user), success: true, message: '保存成功' });
   } catch (err) {
     console.error('Update profile error:', err);
     res.status(500).json({ error: 'Failed to update profile' });

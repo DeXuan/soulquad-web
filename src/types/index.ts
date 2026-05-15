@@ -41,6 +41,8 @@ export interface User {
   city?: string;
   height?: number;
   education?: string;
+  occupation?: string;
+  annual_income?: number;
   has_house?: boolean;
   has_car?: boolean;
   purpose?: string;
@@ -114,6 +116,8 @@ export interface Moment {
   user?: User;
   is_liked?: boolean;
   comments?: Comment[];
+  is_anonymous?: boolean;
+  anonymous_name?: string;
 }
 
 export interface CreateMomentData {
@@ -121,4 +125,5 @@ export interface CreateMomentData {
   images?: string[];
   video_url?: string;
   location?: string;
+  is_anonymous?: boolean;
 }

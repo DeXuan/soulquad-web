@@ -410,7 +410,7 @@ export const api = {
     MOCK_MODE ? mockApi.getUserMoments(userId) :
     fetchApi<Moment[]>(`/moments/user/${userId}`),
 
-  createMoment: (data: { content: string; images?: string[]; video_url?: string; location?: string }) =>
+  createMoment: (data: { content: string; images?: string[]; video_url?: string; location?: string; is_anonymous?: boolean }) =>
     MOCK_MODE ? mockApi.createMoment(data) :
     fetchApi<Moment>('/moments', {
       method: 'POST',

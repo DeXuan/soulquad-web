@@ -101,11 +101,11 @@ export function Profile() {
       return;
     }
     try {
-      const updated = await api.updateProfile(editData);
-      setProfileUser(updated);
-      updateUser(updated);
+      const result = await api.updateProfile(editData);
+      setProfileUser(result);
+      updateUser(result);
       setEditing(false);
-      alert('保存成功');
+      alert(result.message || '保存成功');
     } catch (err) {
       console.error('Failed to update profile:', err);
       alert('保存失败');
@@ -359,6 +359,26 @@ export function Profile() {
                 <option value="硕士">硕士</option>
                 <option value="博士">博士</option>
               </select>
+            </div>
+
+            <div className="form-group">
+              <label>职业</label>
+              <input
+                type="text"
+                value={editData.occupation || profileUser.occupation || ''}
+                onChange={e => setEditData({ ...editData, occupation: e.target.value })}
+                placeholder="如：产品经理"
+              />
+            </div>
+
+            <div className="form-group">
+              <label>年收入 (万)</label>
+              <input
+                type="number"
+                value={editData.annual_income || profileUser.annual_income || ''}
+                onChange={e => setEditData({ ...editData, annual_income: parseInt(e.target.value) })}
+                placeholder="如：20"
+              />
             </div>
 
             <div className="form-group">

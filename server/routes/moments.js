@@ -8,6 +8,34 @@ function getCurrentUserId(req) {
   return req.headers['x-user-id'];
 }
 
+function generateAnonymousName() {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  const prefixes = ['灵魂', '星辰', '月光', '微风', '晨曦', '薄雾', '流云', '夜星'];
+  const p = prefixes[Math.floor(Math.random() * prefixes.length)];
+  const c = chars[Math.floor(Math.random() * chars.length)];
+  const num = Math.floor(Math.random() * 900) + 100;
+  return `${p}${c}${num}`;
+}
+
+function formatMoment(moment) {
+  return {
+    ...moment,
+    images: moment.images_json || [],
+    images_json: undefined,
+    user: moment.is_anonymous ? {
+      id: 'anonymous',
+      nickname: moment.anonymous_name || '匿名用户',
+      avatar_url: '',
+      user_tier: 'anonymous'
+    } : {
+      id: moment.user_id,
+      nickname: moment.nickname,
+      avatar_url: moment.avatar_url,
+      user_tier: moment.user_tier
+    }
+  };
+}
+
 momentRoutes.get('/', async (req, res) => {
   const userId = getCurrentUserId(req);
   if (!userId) {
@@ -27,11 +55,7 @@ momentRoutes.get('/', async (req, res) => {
       LIMIT $1 OFFSET $2
     `, [limit, offset]);
 
-    const momentsWithImages = moments.map(m => ({
-      ...m,
-      images: m.images_json || [],
-      images_json: undefined
-    }));
+    const momentsWithImages = moments.map(formatMoment);
 
     const countResult = await get('SELECT COUNT(*) as count FROM moments');
     const total = countResult.count;
@@ -58,11 +82,7 @@ momentRoutes.get('/user/:userId', async (req, res) => {
       ORDER BY m.created_at DESC
     `, [req.params.userId]);
 
-    const momentsWithImages = moments.map(m => ({
-      ...m,
-      images: m.images_json || [],
-      images_json: undefined
-    }));
+    const momentsWithImages = moments.map(formatMoment);
 
     res.json(momentsWithImages);
   } catch (err) {
@@ -77,7 +97,7 @@ momentRoutes.post('/', async (req, res) => {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
-  const { content, images, video_url, location } = req.body;
+  const { content, images, video_url, location, is_anonymous } = req.body;
   if (!content && !images && !video_url) {
     return res.status(400).json({ error: 'Content, images or video required' });
   }
@@ -93,11 +113,12 @@ momentRoutes.post('/', async (req, res) => {
     const id = crypto.randomUUID();
     const now = new Date().toISOString();
     const imagesJson = JSON.stringify(images || []);
+    const anonymousName = is_anonymous ? generateAnonymousName() : '';
 
     await query(`
-      INSERT INTO moments (id, user_id, content, images_json, video_url, location, created_at)
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
-    `, [id, userId, content || '', imagesJson, video_url || '', location || '', now]);
+      INSERT INTO moments (id, user_id, content, images_json, video_url, location, is_anonymous, anonymous_name, created_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+    `, [id, userId, content || '', imagesJson, video_url || '', location || '', is_anonymous || false, anonymousName, now]);
 
     const moment = await get(`
       SELECT m.*, u.nickname, u.avatar_url, u.user_tier
@@ -106,11 +127,7 @@ momentRoutes.post('/', async (req, res) => {
       WHERE m.id = $1
     `, [id]);
 
-    res.json({
-      ...moment,
-      images: moment.images_json || [],
-      images_json: undefined
-    });
+    res.json(formatMoment(moment));
   } catch (err) {
     console.error('Create moment error:', err);
     res.status(500).json({ error: 'Failed to create moment' });

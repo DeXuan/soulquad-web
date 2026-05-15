@@ -447,6 +447,7 @@ function CreateMomentModal({ onClose, onSuccess }: { onClose: () => void; onSucc
   const [location, setLocation] = useState<string>('');
   const [showLocationPicker, setShowLocationPicker] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [isAnonymous, setIsAnonymous] = useState(false);
 
   // Load draft on mount
   useEffect(() => {
@@ -480,7 +481,8 @@ function CreateMomentModal({ onClose, onSuccess }: { onClose: () => void; onSucc
       const moment = await api.createMoment({
         content: content.trim() || '分享图片',
         images: images.length > 0 ? images : undefined,
-        location: location || undefined
+        location: location || undefined,
+        is_anonymous: isAnonymous
       });
       clearDraft();
       onSuccess(moment);
@@ -548,6 +550,23 @@ function CreateMomentModal({ onClose, onSuccess }: { onClose: () => void; onSucc
         <button onClick={onClose} disabled={loading} style={{ background: 'none', border: 'none', fontSize: '1rem', color: 'var(--text-secondary)', cursor: loading ? 'default' : 'pointer' }}>
           取消
         </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <button
+            onClick={() => setIsAnonymous(!isAnonymous)}
+            style={{
+              background: isAnonymous ? 'var(--primary)' : 'var(--bg-dark)',
+              border: 'none',
+              borderRadius: '16px',
+              padding: '0.35rem 0.85rem',
+              color: isAnonymous ? 'white' : 'var(--text-secondary)',
+              fontSize: '0.8125rem',
+              fontWeight: 500,
+              cursor: 'pointer'
+            }}
+          >
+            {isAnonymous ? '🔒 匿名' : '👤 实名'}
+          </button>
+        </div>
         <span style={{ fontWeight: 600, fontSize: '1.0625rem' }}>发布动态</span>
         <button
           onClick={handleSubmit}

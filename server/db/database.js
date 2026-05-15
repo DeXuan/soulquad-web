@@ -58,6 +58,10 @@ async function createTables() {
         ai_description TEXT DEFAULT '',
         match_count INTEGER DEFAULT 0,
         activity_score INTEGER DEFAULT 0,
+        height INTEGER DEFAULT 0,
+        education VARCHAR(50) DEFAULT '',
+        occupation VARCHAR(100) DEFAULT '',
+        annual_income INTEGER DEFAULT 0,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
@@ -106,6 +110,8 @@ async function createTables() {
         location TEXT DEFAULT '',
         like_count INTEGER DEFAULT 0,
         comment_count INTEGER DEFAULT 0,
+        is_anonymous BOOLEAN DEFAULT false,
+        anonymous_name VARCHAR(50) DEFAULT '',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
 
@@ -133,6 +139,24 @@ async function createTables() {
       CREATE INDEX IF NOT EXISTS idx_moment_likes_moment ON moment_likes(moment_id);
       CREATE INDEX IF NOT EXISTS idx_moment_comments_moment ON moment_comments(moment_id);
     `);
+
+    // Migration: Add new columns to existing tables
+    const migrations = [
+      'ALTER TABLE users ADD COLUMN IF NOT EXISTS height INTEGER DEFAULT 0',
+      "ALTER TABLE users ADD COLUMN IF NOT EXISTS education VARCHAR(50) DEFAULT ''",
+      "ALTER TABLE users ADD COLUMN IF NOT EXISTS occupation VARCHAR(100) DEFAULT ''",
+      'ALTER TABLE users ADD COLUMN IF NOT EXISTS annual_income INTEGER DEFAULT 0',
+      'ALTER TABLE moments ADD COLUMN IF NOT EXISTS is_anonymous BOOLEAN DEFAULT false',
+      "ALTER TABLE moments ADD COLUMN IF NOT EXISTS anonymous_name VARCHAR(50) DEFAULT ''"
+    ];
+
+    for (const migration of migrations) {
+      try {
+        await client.query(migration);
+      } catch (err) {
+        // Ignore errors for columns that might already exist
+      }
+    }
 
     // Check if we need to seed data
     const userCount = await client.query('SELECT COUNT(*) FROM users');
