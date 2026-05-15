@@ -15,7 +15,7 @@ export interface Notification {
   type: NotificationType;
   title: string;
   content: string;
-  data: string;
+  data: Record<string, any>;
   read: boolean;
   created_at: string;
 }
@@ -78,7 +78,7 @@ export interface Message {
   match_id: string;
   sender_id: string;
   content: string;
-  message_type: 'text' | 'image' | 'emoji';
+  message_type: 'text' | 'image' | 'emoji' | 'audio';
   created_at: string;
   read_at: string | null;
 }

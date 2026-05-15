@@ -179,8 +179,10 @@ export function Discover() {
           </button>
           <button
             className={`location-selector ${locationMode === 'city' ? 'active' : ''}`}
-            onClick={() => setLocationMode('city')}
-            onClickCapture={() => setShowCityPicker(true)}
+            onClick={() => {
+              setLocationMode('city');
+              setShowCityPicker(true);
+            }}
           >
             📍 {selectedCity ? selectedCity.name : '城市'}
           </button>

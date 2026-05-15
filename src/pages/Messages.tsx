@@ -208,11 +208,9 @@ export function Messages() {
                           await api.markNotificationRead(notif.id);
                           loadData();
                         }
-                        if (notif.data) {
-                          const data = JSON.parse(notif.data);
-                          if (data.matchId) {
-                            navigate(`/chat/${data.matchId}`);
-                          }
+                        const notifData = typeof notif.data === 'string' ? JSON.parse(notif.data) : notif.data;
+                        if (notifData.matchId) {
+                          navigate(`/chat/${notifData.matchId}`);
                         }
                       }}
                     >

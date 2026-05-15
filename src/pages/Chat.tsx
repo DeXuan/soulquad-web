@@ -6,6 +6,15 @@ import { useAuth } from '../hooks/useAuth';
 import { Message, Match, User } from '../types';
 import { QUADRANT_INFO } from '../data/mbti';
 
+const EMOJI_CATEGORIES = [
+  { name: '笑脸', emojis: ['😀', '😃', '😄', '😁', '😆', '😅', '😂', '🤣', '😊', '😇', '🙂', '😉', '😌', '😍', '🥰', '😘', '😋', '😛', '🤔', '🤨'] },
+  { name: '爱心', emojis: ['❤️', '🧡', '💛', '💚', '💙', '💜', '🖤', '💕', '💞', '💓', '💗', '💖', '💘', '💝', '💟', '🥀', '🌹', '🌺', '🌸', '💐'] },
+  { name: '手势', emojis: ['👍', '👎', '👌', '✌️', '🤞', '🤟', '🤘', '🤙', '👈', '👉', '👆', '👇', '☝️', '✋', '🤚', '🖐️', '🖖', '👋', '🤏', '✍️'] },
+  { name: '庆祝', emojis: ['🎉', '🎊', '🎈', '🎁', '🎀', '🏆', '🥇', '🥈', '🥉', '🏅', '⭐', '🌟', '✨', '💫', '🎯', '🎱', '🎮', '🕹️', '🎲', '🧩'] },
+  { name: '物品', emojis: ['💼', '📱', '💻', '⌚', '📷', '🎥', '📚', '✏️', '📝', '💰', '💳', '🔑', '🎵', '🎶', '📻', '🎤', '🎧', '🎷', '🎸', '🎺'] },
+  { name: '自然', emojis: ['🌞', '🌙', '⭐', '🌟', '💫', '☁️', '⛅', '🌈', '☔', '❄️', '🌊', '🔥', '💧', '🌿', '🌸', '🌺', '🌻', '🍀', '🍁', '🌴'] },
+];
+
 export function Chat() {
   const { matchId } = useParams<{ matchId: string }>();
   const { user } = useAuth();
@@ -17,8 +26,15 @@ export function Chat() {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [icebreakers, setIcebreakers] = useState<string[]>([]);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const [recording, setRecording] = useState(false);
+  const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
+  const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const socketRef = useRef<Socket | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const emojiPickerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!matchId) return;
@@ -36,6 +52,16 @@ export function Chat() {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (emojiPickerRef.current && !emojiPickerRef.current.contains(e.target as Node)) {
+        setShowEmojiPicker(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const loadChat = async () => {
     if (!matchId) return;
@@ -108,8 +134,8 @@ export function Chat() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  const handleSend = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSend = async (e?: React.FormEvent) => {
+    e?.preventDefault();
     if (!newMessage.trim() || !matchId || sending) return;
 
     setSending(true);
@@ -130,6 +156,120 @@ export function Chat() {
     }
   };
 
+  const handleEmojiSelect = (emoji: string) => {
+    setNewMessage(prev => prev + emoji);
+    setShowEmojiPicker(false);
+  };
+
+  const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0 || !matchId) return;
+
+    const file = files[0];
+    if (!file.type.startsWith('image/')) return;
+
+    setSending(true);
+    try {
+      // Convert image to base64
+      const reader = new FileReader();
+      const imageData = await new Promise<string>((resolve, reject) => {
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+
+      // Compress image
+      const img = new Image();
+      img.src = imageData;
+      await new Promise(resolve => { img.onload = resolve; });
+
+      const canvas = document.createElement('canvas');
+      const maxWidth = 800;
+      const scale = img.width > maxWidth ? maxWidth / img.width : 1;
+      canvas.width = img.width * scale;
+      canvas.height = img.height * scale;
+      const ctx = canvas.getContext('2d')!;
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      const compressedImage = canvas.toDataURL('image/jpeg', 0.7);
+
+      const message = await api.sendImageMessage(matchId, compressedImage);
+      setMessages(prev => [...prev, message]);
+
+      socketRef.current?.emit('send_message', {
+        match_id: matchId,
+        content: compressedImage,
+        message_type: 'image'
+      });
+    } catch (err) {
+      console.error('Failed to send image:', err);
+    } finally {
+      setSending(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      const chunks: BlobPart[] = [];
+
+      recorder.ondataavailable = (e) => {
+        chunks.push(e.data);
+      };
+
+      recorder.onstop = async () => {
+        const blob = new Blob(chunks, { type: 'audio/webm' });
+        setAudioBlob(blob);
+        stream.getTracks().forEach(track => track.stop());
+      };
+
+      recorder.start();
+      setMediaRecorder(recorder);
+      setRecording(true);
+    } catch (err) {
+      console.error('Failed to start recording:', err);
+      alert('无法访问麦克风，请检查权限设置');
+    }
+  };
+
+  const stopRecording = async () => {
+    if (!mediaRecorder || !matchId) return;
+
+    mediaRecorder.stop();
+    setRecording(false);
+
+    // Wait a bit for the blob to be ready
+    setTimeout(async () => {
+      if (!audioBlob) return;
+
+      setSending(true);
+      try {
+        // Convert audio to base64
+        const reader = new FileReader();
+        const audioData = await new Promise<string>((resolve, reject) => {
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(audioBlob);
+        });
+
+        const message = await api.sendAudioMessage(matchId, audioData);
+        setMessages(prev => [...prev, message]);
+
+        socketRef.current?.emit('send_message', {
+          match_id: matchId,
+          content: audioData,
+          message_type: 'audio'
+        });
+      } catch (err) {
+        console.error('Failed to send audio:', err);
+      } finally {
+        setSending(false);
+        setAudioBlob(null);
+      }
+    }, 500);
+  };
+
   const formatTime = (dateStr: string) => {
     const date = new Date(dateStr);
     return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
@@ -144,6 +284,25 @@ export function Chat() {
     if (date.toDateString() === today.toDateString()) return '今天';
     if (date.toDateString() === yesterday.toDateString()) return '昨天';
     return date.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' });
+  };
+
+  const renderMessageContent = (message: Message) => {
+    if (message.message_type === 'image') {
+      return (
+        <img
+          src={message.content}
+          alt=""
+          style={{ maxWidth: '200px', maxHeight: '200px', borderRadius: '12px', cursor: 'pointer' }}
+          onClick={() => window.open(message.content, '_blank')}
+        />
+      );
+    }
+    if (message.message_type === 'audio') {
+      return (
+        <audio controls src={message.content} style={{ height: '36px' }} />
+      );
+    }
+    return <span>{message.content}</span>;
   };
 
   if (loading) {
@@ -217,7 +376,7 @@ export function Chat() {
         ) : (
           <>
             {/* Icebreaker Suggestions */}
-            {icebreakers.length > 0 && (
+            {icebreakers.length > 0 && messages.length < 3 && (
               <div style={{ padding: '0.75rem 1rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'center' }}>
                 {icebreakers.map((topic, i) => (
                   <button
@@ -273,7 +432,7 @@ export function Chat() {
                     </div>
                   )}
                   <div className={`message ${isSent ? 'sent' : 'received'}`}>
-                    <div>{message.content}</div>
+                    <div>{renderMessageContent(message)}</div>
                     <div className="message-time">{formatTime(message.created_at)}</div>
                   </div>
                 </div>
@@ -284,17 +443,174 @@ export function Chat() {
         <div ref={messagesEndRef} />
       </div>
 
+      {/* Emoji Picker */}
+      {showEmojiPicker && (
+        <div
+          ref={emojiPickerRef}
+          style={{
+            position: 'absolute',
+            bottom: '70px',
+            left: '10px',
+            width: '320px',
+            maxHeight: '280px',
+            background: 'var(--bg-card)',
+            borderRadius: '12px',
+            boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
+            overflow: 'hidden',
+            zIndex: 100
+          }}
+        >
+          <div style={{ display: 'flex', overflowX: 'auto', padding: '8px', borderBottom: '1px solid var(--border)' }}>
+            {EMOJI_CATEGORIES.map((cat, i) => (
+              <button
+                key={i}
+                onClick={() => {}}
+                style={{
+                  padding: '4px 8px',
+                  background: i === 0 ? 'var(--primary)' : 'transparent',
+                  border: 'none',
+                  borderRadius: '6px',
+                  color: 'var(--text-primary)',
+                  fontSize: '0.75rem',
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                {cat.name}
+              </button>
+            ))}
+          </div>
+          <div style={{ padding: '8px', overflowY: 'auto', maxHeight: '200px' }}>
+            {EMOJI_CATEGORIES[0].emojis.map((emoji, i) => (
+              <button
+                key={i}
+                onClick={() => handleEmojiSelect(emoji)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  fontSize: '1.5rem',
+                  padding: '4px',
+                  cursor: 'pointer'
+                }}
+              >
+                {emoji}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* More Menu */}
+      {showMoreMenu && (
+        <div
+          style={{
+            position: 'absolute',
+            bottom: '70px',
+            right: '10px',
+            width: '180px',
+            background: 'var(--bg-card)',
+            borderRadius: '12px',
+            boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
+            overflow: 'hidden',
+            zIndex: 100
+          }}
+          onClick={() => setShowMoreMenu(false)}
+        >
+          <div
+            style={{ padding: '12px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
+            onClick={() => { fileInputRef.current?.click(); setShowMoreMenu(false); }}
+          >
+            <span style={{ fontSize: '1.25rem' }}>📷</span>
+            <span>图片</span>
+          </div>
+          <div
+            style={{ padding: '12px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
+            onClick={() => { /* Video call placeholder */ setShowMoreMenu(false); }}
+          >
+            <span style={{ fontSize: '1.25rem' }}>📹</span>
+            <span>视频通话</span>
+          </div>
+        </div>
+      )}
+
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        onChange={handleImageSelect}
+        style={{ display: 'none' }}
+      />
+
       <form className="chat-input" onSubmit={handleSend}>
+        <button
+          type="button"
+          onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+          style={{
+            background: 'none',
+            border: 'none',
+            fontSize: '1.25rem',
+            cursor: 'pointer',
+            padding: '0 4px'
+          }}
+        >
+          😊
+        </button>
+        <button
+          type="button"
+          onClick={() => setShowMoreMenu(!showMoreMenu)}
+          style={{
+            background: 'none',
+            border: 'none',
+            fontSize: '1.25rem',
+            cursor: 'pointer',
+            padding: '0 4px'
+          }}
+        >
+          ➕
+        </button>
         <input
           type="text"
           value={newMessage}
           onChange={(e) => setNewMessage(e.target.value)}
-          placeholder="发送消息..."
-          disabled={sending}
+          placeholder={recording ? '录音中...' : '发送消息...'}
+          disabled={sending || recording}
+          style={{ flex: 1 }}
         />
-        <button type="submit" disabled={!newMessage.trim() || sending}>
-          {sending ? '...' : '发送'}
-        </button>
+        {recording ? (
+          <button
+            type="button"
+            onClick={stopRecording}
+            style={{
+              background: '#ef4444',
+              border: 'none',
+              borderRadius: '20px',
+              padding: '6px 12px',
+              color: 'white',
+              fontSize: '0.875rem',
+              cursor: 'pointer'
+            }}
+          >
+            发送
+          </button>
+        ) : newMessage.trim() ? (
+          <button type="submit" disabled={!newMessage.trim() || sending}>
+            发送
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={startRecording}
+            style={{
+              background: 'none',
+              border: 'none',
+              fontSize: '1.25rem',
+              cursor: 'pointer',
+              padding: '0 4px'
+            }}
+          >
+            🎤
+          </button>
+        )}
       </form>
     </div>
   );

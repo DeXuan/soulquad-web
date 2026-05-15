@@ -65,7 +65,7 @@ async function start() {
   });
 
   // Socket.io connection handling
-  const connectedUsers = new Map();
+  global.connectedUsers = new Map();
 
   io.use((socket, next) => {
     const token = socket.handshake.auth.token;
@@ -89,7 +89,7 @@ async function start() {
   io.on('connection', (socket) => {
     const token = socket.handshake.auth.token;
     if (token && socket.userId) {
-      connectedUsers.set(socket.userId, socket.id);
+      global.connectedUsers.set(socket.userId, socket.id);
     }
 
     socket.on('join_room', (matchId) => {
@@ -131,7 +131,7 @@ async function start() {
 
     socket.on('disconnect', () => {
       if (socket.userId) {
-        connectedUsers.delete(socket.userId);
+        global.connectedUsers.delete(socket.userId);
       }
     });
   });

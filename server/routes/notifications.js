@@ -25,7 +25,7 @@ notificationRoutes.get('/', async (req, res) => {
     res.json(notifications.map(n => ({
       ...n,
       is_read: !!n.is_read,
-      data: n.data || {}
+      data: typeof n.data === 'string' ? JSON.parse(n.data || '{}') : (n.data || {})
     })));
   } catch (err) {
     console.error('Get notifications error:', err);

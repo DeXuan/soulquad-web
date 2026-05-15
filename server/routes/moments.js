@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import crypto from 'crypto';
 import { query, get, all } from '../db/database.js';
+import { createNotification } from './notifications.js';
 
 export const momentRoutes = Router();
 
@@ -17,11 +18,14 @@ function generateAnonymousName() {
   return `${p}${c}${num}`;
 }
 
-function formatMoment(moment) {
+function formatMoment(moment, userId) {
   return {
     ...moment,
     images: moment.images_json || [],
     images_json: undefined,
+    is_liked: !!moment.is_liked,
+    like_count: moment.like_count || 0,
+    comment_count: moment.comment_count || 0,
     user: moment.is_anonymous ? {
       id: 'anonymous',
       nickname: moment.anonymous_name || '匿名用户',
@@ -48,19 +52,33 @@ momentRoutes.get('/', async (req, res) => {
 
   try {
     const moments = await all(`
-      SELECT m.*, u.nickname, u.avatar_url, u.user_tier
+      SELECT m.*, u.nickname, u.avatar_url, u.user_tier,
+             (SELECT COUNT(*) FROM moment_likes WHERE moment_id = m.id) as like_count,
+             (SELECT COUNT(*) FROM moment_comments WHERE moment_id = m.id) as comment_count,
+             EXISTS(SELECT 1 FROM moment_likes WHERE moment_id = m.id AND user_id = $1) as is_liked
       FROM moments m
       JOIN users u ON m.user_id = u.id
       ORDER BY m.created_at DESC
-      LIMIT $1 OFFSET $2
-    `, [limit, offset]);
+      LIMIT $2 OFFSET $3
+    `, [userId, limit, offset]);
 
-    const momentsWithImages = moments.map(formatMoment);
+    // Load comments for each moment
+    const momentsWithComments = await Promise.all(moments.map(async (m) => {
+      const comments = await all(`
+        SELECT c.*, u.nickname, u.avatar_url
+        FROM moment_comments c
+        JOIN users u ON c.user_id = u.id
+        WHERE c.moment_id = $1
+        ORDER BY c.created_at ASC
+        LIMIT 3
+      `, [m.id]);
+      return { ...formatMoment(m, userId), comments };
+    }));
 
     const countResult = await get('SELECT COUNT(*) as count FROM moments');
     const total = countResult.count;
 
-    res.json({ moments: momentsWithImages, hasMore: offset + moments.length < total });
+    res.json({ moments: momentsWithComments, hasMore: offset + moments.length < total });
   } catch (err) {
     console.error('Get moments error:', err);
     res.status(500).json({ error: 'Failed to get moments' });
@@ -75,14 +93,17 @@ momentRoutes.get('/user/:userId', async (req, res) => {
 
   try {
     const moments = await all(`
-      SELECT m.*, u.nickname, u.avatar_url, u.user_tier
+      SELECT m.*, u.nickname, u.avatar_url, u.user_tier,
+             (SELECT COUNT(*) FROM moment_likes WHERE moment_id = m.id) as like_count,
+             (SELECT COUNT(*) FROM moment_comments WHERE moment_id = m.id) as comment_count,
+             EXISTS(SELECT 1 FROM moment_likes WHERE moment_id = m.id AND user_id = $1) as is_liked
       FROM moments m
       JOIN users u ON m.user_id = u.id
-      WHERE m.user_id = $1
+      WHERE m.user_id = $2
       ORDER BY m.created_at DESC
-    `, [req.params.userId]);
+    `, [userId, req.params.userId]);
 
-    const momentsWithImages = moments.map(formatMoment);
+    const momentsWithImages = moments.map(m => formatMoment(m, userId));
 
     res.json(momentsWithImages);
   } catch (err) {
@@ -121,13 +142,14 @@ momentRoutes.post('/', async (req, res) => {
     `, [id, userId, content || '', imagesJson, video_url || '', location || '', is_anonymous || false, anonymousName, now]);
 
     const moment = await get(`
-      SELECT m.*, u.nickname, u.avatar_url, u.user_tier
+      SELECT m.*, u.nickname, u.avatar_url, u.user_tier,
+             0 as like_count, 0 as comment_count, false as is_liked
       FROM moments m
       JOIN users u ON m.user_id = u.id
       WHERE m.id = $1
     `, [id]);
 
-    res.json(formatMoment(moment));
+    res.json(formatMoment(moment, userId));
   } catch (err) {
     console.error('Create moment error:', err);
     res.status(500).json({ error: 'Failed to create moment' });
@@ -163,6 +185,11 @@ momentRoutes.post('/:momentId/like', async (req, res) => {
   }
 
   try {
+    const moment = await get('SELECT user_id FROM moments WHERE id = $1', [req.params.momentId]);
+    if (!moment) {
+      return res.status(404).json({ error: 'Moment not found' });
+    }
+
     const existing = await get(`
       SELECT id FROM moment_likes WHERE moment_id = $1 AND user_id = $2
     `, [req.params.momentId, userId]);
@@ -174,6 +201,27 @@ momentRoutes.post('/:momentId/like', async (req, res) => {
         INSERT INTO moment_likes (id, moment_id, user_id, created_at)
         VALUES ($1, $2, $3, $4)
       `, [crypto.randomUUID(), req.params.momentId, userId, new Date().toISOString()]);
+
+      // Create notification for moment owner (if not self-like)
+      if (moment.user_id !== userId) {
+        const liker = await get('SELECT nickname FROM users WHERE id = $1', [userId]);
+        const notification = await createNotification(
+          moment.user_id,
+          'like',
+          '有人赞了你的动态',
+          `${liker?.nickname || '某人'} 赞了你的动态`,
+          { momentId: req.params.momentId, type: 'moment_like' }
+        );
+
+        // Emit socket event for real-time notification
+        const io = req.app.get('io');
+        if (io) {
+          const socketId = global.connectedUsers?.get(moment.user_id);
+          if (socketId) {
+            io.to(socketId).emit('notification', { type: 'like', momentId: req.params.momentId });
+          }
+        }
+      }
     }
 
     const countResult = await get('SELECT COUNT(*) as count FROM moment_likes WHERE moment_id = $1', [req.params.momentId]);
@@ -222,6 +270,11 @@ momentRoutes.post('/:momentId/comments', async (req, res) => {
   }
 
   try {
+    const moment = await get('SELECT user_id FROM moments WHERE id = $1', [req.params.momentId]);
+    if (!moment) {
+      return res.status(404).json({ error: 'Moment not found' });
+    }
+
     const id = crypto.randomUUID();
     const now = new Date().toISOString();
 
@@ -236,6 +289,27 @@ momentRoutes.post('/:momentId/comments', async (req, res) => {
       JOIN users u ON c.user_id = u.id
       WHERE c.id = $1
     `, [id]);
+
+    // Create notification for moment owner (if not self-comment)
+    if (moment.user_id !== userId) {
+      const commenter = await get('SELECT nickname FROM users WHERE id = $1', [userId]);
+      await createNotification(
+        moment.user_id,
+        'like',
+        '有人评论了你的动态',
+        `${commenter?.nickname || '某人'} 评论了你的动态: ${content.slice(0, 50)}${content.length > 50 ? '...' : ''}`,
+        { momentId: req.params.momentId, commentId: id, type: 'moment_comment' }
+      );
+
+      // Emit socket event for real-time notification
+      const io = req.app.get('io');
+      if (io) {
+        const socketId = global.connectedUsers?.get(moment.user_id);
+        if (socketId) {
+          io.to(socketId).emit('notification', { type: 'comment', momentId: req.params.momentId });
+        }
+      }
+    }
 
     res.json(comment);
   } catch (err) {

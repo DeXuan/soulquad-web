@@ -46,7 +46,7 @@ messageRoutes.get('/:matchId', async (req, res) => {
 messageRoutes.post('/:matchId', async (req, res) => {
   const userId = getCurrentUserId(req);
   const { matchId } = req.params;
-  const { content } = req.body;
+  const { content, message_type } = req.body;
 
   if (!userId) {
     return res.status(401).json({ error: 'Unauthorized' });
@@ -73,21 +73,39 @@ messageRoutes.post('/:matchId', async (req, res) => {
 
     const id = crypto.randomUUID();
     const now = new Date().toISOString();
+    const msgType = message_type || 'text';
 
     await query(`
       INSERT INTO messages (id, match_id, sender_id, content, message_type, created_at)
       VALUES ($1, $2, $3, $4, $5, $6)
-    `, [id, matchId, userId, content.trim(), 'text', now]);
+    `, [id, matchId, userId, content.trim(), msgType, now]);
 
     const message = {
       id,
       match_id: matchId,
       sender_id: userId,
       content: content.trim(),
-      message_type: 'text',
+      message_type: msgType,
       created_at: now,
       read_at: null
     };
+
+    // Emit socket event for real-time message delivery
+    const io = req.app.get('io');
+    if (io) {
+      // Emit to the match room so both users get the message
+      io.to(matchId).emit('new_message', message);
+
+      // Also notify the other user directly if online
+      const otherUserId = match.oder_a_id === userId ? match.oder_b_id : match.oder_a_id;
+      const socketId = global.connectedUsers?.get(otherUserId);
+      if (socketId) {
+        io.to(socketId).emit('message_notification', {
+          matchId,
+          message
+        });
+      }
+    }
 
     res.json(message);
   } catch (err) {

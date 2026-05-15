@@ -167,6 +167,9 @@ matchRoutes.post('/like/:userId', async (req, res) => {
       match = await get('SELECT * FROM matches WHERE id = $1', [match.id]);
     }
 
+    // Include matchId in the liked notification so user can navigate to chat
+    await createNotification(targetId, 'like', '有人喜欢你', `${currentUser.nickname} 对你发送了喜欢`, { userId, matchId: match.id });
+
     if (matchedNow) {
       await query('UPDATE users SET match_count = match_count + 1 WHERE id = $1', [userId]);
       await query('UPDATE users SET match_count = match_count + 1 WHERE id = $1', [targetId]);

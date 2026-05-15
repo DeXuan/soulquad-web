@@ -373,6 +373,18 @@ export const api = {
       body: JSON.stringify({ content })
     }),
 
+  sendImageMessage: (matchId: string, imageData: string) =>
+    fetchApi<Message>(`/messages/${matchId}`, {
+      method: 'POST',
+      body: JSON.stringify({ content: imageData, message_type: 'image' })
+    }),
+
+  sendAudioMessage: (matchId: string, audioData: string) =>
+    fetchApi<Message>(`/messages/${matchId}`, {
+      method: 'POST',
+      body: JSON.stringify({ content: audioData, message_type: 'audio' })
+    }),
+
   markMessagesRead: (matchId: string) =>
     fetchApi<void>(`/messages/${matchId}/read`, {
       method: 'POST'
