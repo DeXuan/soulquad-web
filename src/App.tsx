@@ -47,7 +47,7 @@ function AppLayout({ children }: { children: React.ReactNode }) {
 
 function App() {
   const { user, isAuthenticated } = useAuth();
-  useTheme();
+  const { theme, toggleTheme } = useTheme();
 
   return (
     <BrowserRouter>
@@ -74,7 +74,12 @@ function App() {
                 backgroundClip: 'text'
               }}>灵魂象限</span>
             </div>
-            <NotificationBell />
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <button className="theme-toggle" onClick={toggleTheme} title="切换主题">
+                {theme === 'dark' ? '☀️' : '🌙'}
+              </button>
+              <NotificationBell />
+            </div>
           </div>
         </div>
       )}
