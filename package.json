@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "server": "node server/index.js",
-    "build": "tsc && vite build",
+    "build": "npx tsc && npx vite build",
     "preview": "vite preview",
     "package": "npm run build && node scripts/create-dist.js",
     "package:exe": "npm run build && npx ncc build server/index.js -o dist-server && npx pkg dist-server/index.js -t node18-win-x64 --output release/soulquad.exe && node scripts/create-exe-dist.js",
