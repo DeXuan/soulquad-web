@@ -1,16 +1,19 @@
 import { Router } from 'express';
 import Anthropic from '@anthropic-ai/sdk';
 import { query, get } from '../db/database.js';
+import { authMiddleware } from './auth.js';
 import { MBTI_TYPES, QUADRANT_INFO } from './mbti-data.js';
 
 export const aiRoutes = Router();
+
+aiRoutes.use(authMiddleware);
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY || ''
 });
 
 aiRoutes.post('/soul-description', async (req, res) => {
-  const userId = req.headers['x-user-id'];
+  const userId = req.userId;
   if (!userId) {
     return res.status(401).json({ error: 'Unauthorized' });
   }

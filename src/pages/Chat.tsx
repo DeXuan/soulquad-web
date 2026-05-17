@@ -75,14 +75,16 @@ export function Chat() {
       setMessages(messageList);
 
       const currentMatch = matchData.find(m => m.id === matchId);
-      if (currentMatch) {
-        setMatch(currentMatch);
-        const otherUserId = currentMatch.oder_a_id === user?.id
-          ? currentMatch.oder_b_id
-          : currentMatch.oder_a_id;
-        const other = await api.getUser(otherUserId);
-        setOtherUser(other);
+      if (!currentMatch) {
+        setLoading(false);
+        return;
       }
+      setMatch(currentMatch);
+      const otherUserId = currentMatch.oder_a_id === user?.id
+        ? currentMatch.oder_b_id
+        : currentMatch.oder_a_id;
+      const other = await api.getUser(otherUserId);
+      setOtherUser(other);
     } catch (err) {
       console.error('Failed to load chat:', err);
     } finally {
@@ -140,15 +142,10 @@ export function Chat() {
 
     setSending(true);
     try {
-      const message = await api.sendMessage(matchId, newMessage.trim());
-      setMessages(prev => [...prev, message]);
+      await api.sendMessage(matchId, newMessage.trim());
       setNewMessage('');
-
-      socketRef.current?.emit('send_message', {
-        match_id: matchId,
-        content: message.content,
-        message_type: 'text'
-      });
+      // Don't add to state here - socket 'new_message' event will handle it
+      // This prevents double-message display
     } catch (err) {
       console.error('Failed to send message:', err);
     } finally {
@@ -184,22 +181,16 @@ export function Chat() {
       await new Promise(resolve => { img.onload = resolve; });
 
       const canvas = document.createElement('canvas');
-      const maxWidth = 800;
+      const maxWidth = 800; // Max width to prevent huge images
       const scale = img.width > maxWidth ? maxWidth / img.width : 1;
       canvas.width = img.width * scale;
       canvas.height = img.height * scale;
       const ctx = canvas.getContext('2d')!;
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-      const compressedImage = canvas.toDataURL('image/jpeg', 0.7);
+      const compressedImage = canvas.toDataURL('image/jpeg', 0.7); // 70% quality
 
-      const message = await api.sendImageMessage(matchId, compressedImage);
-      setMessages(prev => [...prev, message]);
-
-      socketRef.current?.emit('send_message', {
-        match_id: matchId,
-        content: compressedImage,
-        message_type: 'image'
-      });
+      await api.sendImageMessage(matchId, compressedImage);
+      // Don't add to state - socket 'new_message' event handles it
     } catch (err) {
       console.error('Failed to send image:', err);
     } finally {
@@ -253,14 +244,8 @@ export function Chat() {
           reader.readAsDataURL(audioBlob);
         });
 
-        const message = await api.sendAudioMessage(matchId, audioData);
-        setMessages(prev => [...prev, message]);
-
-        socketRef.current?.emit('send_message', {
-          match_id: matchId,
-          content: audioData,
-          message_type: 'audio'
-        });
+        await api.sendAudioMessage(matchId, audioData);
+        // Don't add to state - socket 'new_message' event handles it
       } catch (err) {
         console.error('Failed to send audio:', err);
       } finally {
@@ -431,9 +416,26 @@ export function Chat() {
                       </span>
                     </div>
                   )}
-                  <div className={`message ${isSent ? 'sent' : 'received'}`}>
-                    <div>{renderMessageContent(message)}</div>
-                    <div className="message-time">{formatTime(message.created_at)}</div>
+                  <div className={`message-row ${isSent ? 'sent' : 'received'}`}>
+                    {!isSent && (
+                      <div
+                        className="chat-avatar"
+                        style={{
+                          background: otherUser?.soul_quadrant === 'explorer' ? 'linear-gradient(135deg, #f59e0b, #f97316)' :
+                                      otherUser?.soul_quadrant === 'builder' ? 'linear-gradient(135deg, #22c55e, #16a34a)' :
+                                      otherUser?.soul_quadrant === 'artist' ? 'linear-gradient(135deg, #ec4899, #d946ef)' :
+                                      'linear-gradient(135deg, #6366f1, #8b5cf6)'
+                        }}
+                      >
+                        {otherUser?.avatar_url ? (
+                          <img src={otherUser.avatar_url} alt="" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
+                        ) : otherUser?.nickname[0]}
+                      </div>
+                    )}
+                    <div className="message-bubble">
+                      {renderMessageContent(message)}
+                      <div className="message-time">{formatTime(message.created_at)}</div>
+                    </div>
                   </div>
                 </div>
               );

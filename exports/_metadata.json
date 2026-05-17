@@ -1,0 +1,39 @@
+{
+  "exportedAt": "2026-05-17T08:10:49.051Z",
+  "pgVersion": "14.23",
+  "nodeVersion": "v24.13.0",
+  "tables": {
+    "users": {
+      "rowCount": 117,
+      "filename": "users.json"
+    },
+    "matches": {
+      "rowCount": 63,
+      "filename": "matches.json"
+    },
+    "messages": {
+      "rowCount": 10,
+      "filename": "messages.json"
+    },
+    "notifications": {
+      "rowCount": 51,
+      "filename": "notifications.json"
+    },
+    "moments": {
+      "rowCount": 17,
+      "filename": "moments.json"
+    },
+    "moment_likes": {
+      "rowCount": 6,
+      "filename": "moment_likes.json"
+    },
+    "moment_comments": {
+      "rowCount": 3,
+      "filename": "moment_comments.json"
+    },
+    "user_blocklist": {
+      "rowCount": 0,
+      "filename": "user_blocklist.json"
+    }
+  }
+}

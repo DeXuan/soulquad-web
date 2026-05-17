@@ -1,0 +1,688 @@
+{
+  "metadata": {
+    "exportedAt": "2026-05-17T08:10:49.155Z",
+    "rowCount": 51,
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "nullable": false,
+        "default": "gen_random_uuid()"
+      },
+      {
+        "name": "user_id",
+        "type": "uuid",
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "type",
+        "type": "character varying",
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "title",
+        "type": "character varying",
+        "nullable": true,
+        "default": "''::character varying"
+      },
+      {
+        "name": "content",
+        "type": "text",
+        "nullable": true,
+        "default": "''::text"
+      },
+      {
+        "name": "data",
+        "type": "jsonb",
+        "nullable": true,
+        "default": "'{}'::jsonb"
+      },
+      {
+        "name": "is_read",
+        "type": "boolean",
+        "nullable": true,
+        "default": "false"
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp without time zone",
+        "nullable": true,
+        "default": "CURRENT_TIMESTAMP"
+      }
+    ]
+  },
+  "data": [
+    {
+      "id": "1f58f0b4-fc4a-4be1-8697-268fb3a45027",
+      "user_id": "41b1c262-1847-4f8d-b070-c0ac279e117f",
+      "type": "like",
+      "title": "有人喜欢你",
+      "content": "Ivy 对你发送了喜欢",
+      "data": {
+        "userId": "e76a9c2c-4e7a-4c7d-9f7d-12eadb0c8a7a"
+      },
+      "is_read": false,
+      "created_at": "2026-05-07T07:53:12.277Z"
+    },
+    {
+      "id": "6a5ced73-3f92-4fe6-a03c-2c70afb73419",
+      "user_id": "b1677cb9-33d0-4ff1-b5e5-633b705a6c8a",
+      "type": "like",
+      "title": "有人喜欢你",
+      "content": "Ivy 对你发送了喜欢",
+      "data": {
+        "userId": "e76a9c2c-4e7a-4c7d-9f7d-12eadb0c8a7a"
+      },
+      "is_read": false,
+      "created_at": "2026-05-07T07:53:17.296Z"
+    },
+    {
+      "id": "c6eec40f-6b6a-4cbe-99cb-2017b55d7bea",
+      "user_id": "1861356c-f906-479f-9a12-a7dba0604475",
+      "type": "like",
+      "title": "有人喜欢你",
+      "content": "Ivy 对你发送了喜欢",
+      "data": {
+        "userId": "e76a9c2c-4e7a-4c7d-9f7d-12eadb0c8a7a"
+      },
+      "is_read": false,
+      "created_at": "2026-05-07T09:18:27.436Z"
+    },
+    {
+      "id": "136f9c7b-3c39-416e-a4d5-f9516668defb",
+      "user_id": "7c5082ad-cf26-4493-850c-dce122caaba3",
+      "type": "like",
+      "title": "有人喜欢你",
+      "content": "Ivy 对你发送了喜欢",
+      "data": {
+        "userId": "e76a9c2c-4e7a-4c7d-9f7d-12eadb0c8a7a"
+      },
+      "is_read": false,
+      "created_at": "2026-05-07T09:18:29.142Z"
+    },
+    {
+      "id": "bca586ca-a8d3-42b0-866e-fc2e23f74c16",
+      "user_id": "1e5afd0b-6af1-47a7-8a69-453d3bc41f35",
+      "type": "like",
+      "title": "有人喜欢你",
+      "content": "Ivy 对你发送了喜欢",
+      "data": {
+        "userId": "e76a9c2c-4e7a-4c7d-9f7d-12eadb0c8a7a"
+      },
+      "is_read": false,
+      "created_at": "2026-05-07T09:18:30.133Z"
+    },
+    {
+      "id": "0e53e4a4-787d-48e7-83d1-03353418851e",
+      "user_id": "fdca53e2-e69b-48f4-b68c-c912e819dd87",
+      "type": "like",
+      "title": "有人喜欢你",
+      "content": "Ivy 对你发送了喜欢",
+      "data": {
+        "userId": "e76a9c2c-4e7a-4c7d-9f7d-12eadb0c8a7a"
+      },
+      "is_read": false,
+      "created_at": "2026-05-07T09:18:30.899Z"
+    },
+    {
+      "id": "7fafdeaa-2513-469f-9889-cc1787d227ae",
+      "user_id": "708091e9-5934-4ce2-837d-3258bde96b7c",
+      "type": "like",
+      "title": "有人喜欢你",
+      "content": "Ivy 对你发送了喜欢",
+      "data": {
+        "userId": "e76a9c2c-4e7a-4c7d-9f7d-12eadb0c8a7a"
+      },
+      "is_read": true,
+      "created_at": "2026-05-07T09:18:31.608Z"
+    },
+    {
+      "id": "d9101bd5-c68c-48f1-90f3-029d9adfa08a",
+      "user_id": "0375e5d8-3b75-40da-ae5c-76fc639d726e",
+      "type": "like",
+      "title": "有人喜欢你",
+      "content": "Ivy 对你发送了喜欢",
+      "data": {
+        "userId": "e76a9c2c-4e7a-4c7d-9f7d-12eadb0c8a7a"
+      },
+      "is_read": false,
+      "created_at": "2026-05-07T09:47:58.104Z"
+    },
+    {
+      "id": "30bba427-0ed3-4f5f-86ca-67a91571721b",
+      "user_id": "16000d9e-76cd-4fc2-bfc1-f1c3ecde9621",
+      "type": "like",
+      "title": "有人喜欢你",
+      "content": "Ivy 对你发送了喜欢",
+      "data": {
+        "userId": "e76a9c2c-4e7a-4c7d-9f7d-12eadb0c8a7a"
+      },
+      "is_read": false,
+      "created_at": "2026-05-07T09:48:03.479Z"
+    },
+    {
+      "id": "9dfba834-39bf-49ca-a1dd-6ee15372ecf9",
+      "user_id": "2a94a4a2-f86e-4397-8a9b-d02914568f80",
+      "type": "like",
+      "title": "有人喜欢你",
+      "content": "Ivy 对你发送了喜欢",
+      "data": {
+        "userId": "e76a9c2c-4e7a-4c7d-9f7d-12eadb0c8a7a"
+      },
+      "is_read": false,
+      "created_at": "2026-05-07T09:53:34.878Z"
+    },
+    {
+      "id": "5cabc91f-0e18-4ab5-8bf3-962630d6c429",
+      "user_id": "68e97fa0-f8d1-41e0-ba16-b16914c23695",
+      "type": "like",
+      "title": "有人喜欢你",
+      "content": "Dylan 对你发送了喜欢",
+      "data": {
+        "userId": "708091e9-5934-4ce2-837d-3258bde96b7c"
+      },
+      "is_read": false,
+      "created_at": "2026-05-07T17:21:47.646Z"
+    },
+    {
+      "id": "2617777a-d8e1-4f81-a3bf-95e1cd299f78",
+      "user_id": "933a481b-ab08-4409-a37b-f094b2b9121a",
+      "type": "like",
+      "title": "有人喜欢你",
+      "content": "Dylan 对你发送了喜欢",
+      "data": {
+        "userId": "708091e9-5934-4ce2-837d-3258bde96b7c"
+      },
+      "is_read": false,
+      "created_at": "2026-05-07T18:51:45.790Z"
+    },
+    {
+      "id": "14c0d276-e866-4b68-bc61-fa5d3bf6219a",
+      "user_id": "b0ef0aa8-a1d5-46aa-9c75-343de661b790",
+      "type": "like",
+      "title": "有人喜欢你",
+      "content": "Dylan 对你发送了喜欢",
+      "data": {
+        "userId": "708091e9-5934-4ce2-837d-3258bde96b7c"
+      },
+      "is_read": false,
+      "created_at": "2026-05-07T19:53:05.256Z"
+    },
+    {
+      "id": "aaf10986-3a5d-476c-b079-5b2e9117e4da",
+      "user_id": "41b1c262-1847-4f8d-b070-c0ac279e117f",
+      "type": "like",
+      "title": "有人喜欢你",
+      "content": "Dylan 对你发送了喜欢",
+      "data": {
+        "userId": "708091e9-5934-4ce2-837d-3258bde96b7c"
+      },
+      "is_read": false,
+      "created_at": "2026-05-07T19:53:07.841Z"
+    },
+    {
+      "id": "5a8e3c7f-2f02-4860-8294-e8e1d87b6f72",
+      "user_id": "ea6fb7e3-8a9d-4a2a-8b47-44cb34a8d650",
+      "type": "like",
+      "title": "有人喜欢你",
+      "content": "Dylan 对你发送了喜欢",
+      "data": {
+        "userId": "708091e9-5934-4ce2-837d-3258bde96b7c"
+      },
+      "is_read": false,
+      "created_at": "2026-05-07T19:53:10.176Z"
+    },
+    {
+      "id": "04dbaa61-91a0-4ab3-846b-25cbd98da952",
+      "user_id": "c1e800c6-24ae-4828-b043-24d33f6368d6",
+      "type": "like",
+      "title": "有人喜欢你",
+      "content": "Dylan 对你发送了喜欢",
+      "data": {
+        "userId": "708091e9-5934-4ce2-837d-3258bde96b7c"
+      },
+      "is_read": false,
+      "created_at": "2026-05-07T19:53:30.976Z"
+    },
+    {
+      "id": "af21126c-23f3-4e73-9983-6ef2f4b0a167",
+      "user_id": "775a504d-4b1c-4a79-8e45-f8ee3c498e1e",
+      "type": "like",
+      "title": "有人喜欢你",
+      "content": "Dylan 对你发送了喜欢",
+      "data": {
+        "userId": "708091e9-5934-4ce2-837d-3258bde96b7c"
+      },
+      "is_read": false,
+      "created_at": "2026-05-07T19:53:48.679Z"
+    },
+    {
+      "id": "59753006-414f-4605-a091-de5c2b531454",
+      "user_id": "88cea422-7bdd-474b-ba65-ef3423053990",
+      "type": "like",
+      "title": "有人喜欢你",
+      "content": "Dylan 对你发送了喜欢",
+      "data": {
+        "userId": "708091e9-5934-4ce2-837d-3258bde96b7c"
+      },
+      "is_read": false,
+      "created_at": "2026-05-07T19:53:50.311Z"
+    },
+    {
+      "id": "7cc58a7b-1eea-4a84-b981-b21f833f97c1",
+      "user_id": "1861356c-f906-479f-9a12-a7dba0604475",
+      "type": "like",
+      "title": "有人喜欢你",
+      "content": "Dylan 对你发送了喜欢",
+      "data": {
+        "userId": "708091e9-5934-4ce2-837d-3258bde96b7c"
+      },
+      "is_read": false,
+      "created_at": "2026-05-07T19:53:53.785Z"
+    },
+    {
+      "id": "c1dc8972-77a8-44c2-9629-0d30b2da519b",
+      "user_id": "88b28473-1429-464e-947e-34245dfb6d48",
+      "type": "like",
+      "title": "有人喜欢你",
+      "content": "Dylan 对你发送了喜欢",
+      "data": {
+        "userId": "708091e9-5934-4ce2-837d-3258bde96b7c"
+      },
+      "is_read": false,
+      "created_at": "2026-05-07T20:24:34.154Z"
+    },
+    {
+      "id": "1f3d245b-b6c8-46ac-8c4b-dd4137294dc0",
+      "user_id": "e750d967-9c18-486d-9513-9f3f8cbd12f2",
+      "type": "like",
+      "title": "有人喜欢你",
+      "content": "Dylan 对你发送了喜欢",
+      "data": {
+        "userId": "708091e9-5934-4ce2-837d-3258bde96b7c"
+      },
+      "is_read": false,
+      "created_at": "2026-05-07T20:24:35.975Z"
+    },
+    {
+      "id": "8daaecfe-f06c-437a-b6d9-8a79be2ec435",
+      "user_id": "0375e5d8-3b75-40da-ae5c-76fc639d726e",
+      "type": "like",
+      "title": "有人喜欢你",
+      "content": "Dylan 对你发送了喜欢",
+      "data": {
+        "userId": "708091e9-5934-4ce2-837d-3258bde96b7c"
+      },
+      "is_read": false,
+      "created_at": "2026-05-07T20:24:38.017Z"
+    },
+    {
+      "id": "09cdecf3-cfbf-4b49-8b43-c7126ad8d383",
+      "user_id": "b1677cb9-33d0-4ff1-b5e5-633b705a6c8a",
+      "type": "like",
+      "title": "有人喜欢你",
+      "content": "Dylan 对你发送了喜欢",
+      "data": {
+        "userId": "708091e9-5934-4ce2-837d-3258bde96b7c"
+      },
+      "is_read": false,
+      "created_at": "2026-05-07T20:24:57.009Z"
+    },
+    {
+      "id": "1205842d-2e60-4d21-bb8a-06b3f560d735",
+      "user_id": "7c5082ad-cf26-4493-850c-dce122caaba3",
+      "type": "like",
+      "title": "有人喜欢你",
+      "content": "Dylan 对你发送了喜欢",
+      "data": {
+        "userId": "708091e9-5934-4ce2-837d-3258bde96b7c"
+      },
+      "is_read": false,
+      "created_at": "2026-05-07T20:24:59.002Z"
+    },
+    {
+      "id": "8d51ae8d-7d4b-4aa0-b9a3-94ab987c0870",
+      "user_id": "1e5afd0b-6af1-47a7-8a69-453d3bc41f35",
+      "type": "like",
+      "title": "有人喜欢你",
+      "content": "Dylan 对你发送了喜欢",
+      "data": {
+        "userId": "708091e9-5934-4ce2-837d-3258bde96b7c"
+      },
+      "is_read": false,
+      "created_at": "2026-05-07T20:42:08.542Z"
+    },
+    {
+      "id": "7ba3907f-ab64-4e59-afe5-edd92c88a478",
+      "user_id": "2a94a4a2-f86e-4397-8a9b-d02914568f80",
+      "type": "like",
+      "title": "有人喜欢你",
+      "content": "Dylan 对你发送了喜欢",
+      "data": {
+        "userId": "708091e9-5934-4ce2-837d-3258bde96b7c"
+      },
+      "is_read": false,
+      "created_at": "2026-05-07T20:42:10.223Z"
+    },
+    {
+      "id": "5ab38d72-7e2a-4d39-a8db-4814a434e353",
+      "user_id": "fdca53e2-e69b-48f4-b68c-c912e819dd87",
+      "type": "like",
+      "title": "有人喜欢你",
+      "content": "Dylan 对你发送了喜欢",
+      "data": {
+        "userId": "708091e9-5934-4ce2-837d-3258bde96b7c"
+      },
+      "is_read": false,
+      "created_at": "2026-05-07T20:42:15.342Z"
+    },
+    {
+      "id": "8e76f6e1-66ff-486e-bdcd-b26905dd9a40",
+      "user_id": "16000d9e-76cd-4fc2-bfc1-f1c3ecde9621",
+      "type": "like",
+      "title": "有人喜欢你",
+      "content": "Dylan 对你发送了喜欢",
+      "data": {
+        "userId": "708091e9-5934-4ce2-837d-3258bde96b7c"
+      },
+      "is_read": false,
+      "created_at": "2026-05-08T06:14:27.837Z"
+    },
+    {
+      "id": "47f40c10-d0e3-4638-b767-8c81339252de",
+      "user_id": "b00ea9c0-5780-4444-ba46-19d77d93a5f0",
+      "type": "like",
+      "title": "有人喜欢你",
+      "content": "Alice Test 对你发送了喜欢",
+      "data": {
+        "userId": "1c3cb358-9924-49f2-997e-a7304347c19c"
+      },
+      "is_read": false,
+      "created_at": "2026-05-16T14:54:41.002Z"
+    },
+    {
+      "id": "175226ad-5694-4e7a-9b86-e8ec81ccd7d8",
+      "user_id": "b00ea9c0-5780-4444-ba46-19d77d93a5f0",
+      "type": "like",
+      "title": "有人喜欢你",
+      "content": "Alice Test 对你发送了喜欢",
+      "data": {
+        "userId": "1c3cb358-9924-49f2-997e-a7304347c19c",
+        "matchId": "c03bd5d8-df52-4add-9474-7f1db25c3ad3"
+      },
+      "is_read": false,
+      "created_at": "2026-05-16T14:54:41.003Z"
+    },
+    {
+      "id": "664c56c2-a62f-4a22-b394-d0a98404ae14",
+      "user_id": "69ab5a52-9883-4dcb-966c-7f5409d819f0",
+      "type": "like",
+      "title": "有人喜欢你",
+      "content": "Alice Test 对你发送了喜欢",
+      "data": {
+        "userId": "1c3cb358-9924-49f2-997e-a7304347c19c"
+      },
+      "is_read": false,
+      "created_at": "2026-05-16T15:03:27.940Z"
+    },
+    {
+      "id": "34bb2370-9f57-433e-9129-495f363b63d6",
+      "user_id": "69ab5a52-9883-4dcb-966c-7f5409d819f0",
+      "type": "like",
+      "title": "有人喜欢你",
+      "content": "Alice Test 对你发送了喜欢",
+      "data": {
+        "userId": "1c3cb358-9924-49f2-997e-a7304347c19c",
+        "matchId": "a90bb351-f55d-4305-8abf-fb466a226696"
+      },
+      "is_read": false,
+      "created_at": "2026-05-16T15:03:27.941Z"
+    },
+    {
+      "id": "9db92dd8-cce0-42da-9050-02e83dba44eb",
+      "user_id": "a0ff178b-135e-4777-bfd5-b271c088aa92",
+      "type": "like",
+      "title": "有人喜欢你",
+      "content": "Alice Test 对你发送了喜欢",
+      "data": {
+        "userId": "1c3cb358-9924-49f2-997e-a7304347c19c"
+      },
+      "is_read": false,
+      "created_at": "2026-05-16T15:17:34.270Z"
+    },
+    {
+      "id": "11d387e5-7c93-400d-81a9-b40de3c5f5ce",
+      "user_id": "a0ff178b-135e-4777-bfd5-b271c088aa92",
+      "type": "like",
+      "title": "有人喜欢你",
+      "content": "Alice Test 对你发送了喜欢",
+      "data": {
+        "userId": "1c3cb358-9924-49f2-997e-a7304347c19c",
+        "matchId": "5e8c01c1-c0b8-49a8-8b5f-67df5d3e4d6f"
+      },
+      "is_read": false,
+      "created_at": "2026-05-16T15:17:34.270Z"
+    },
+    {
+      "id": "c3701512-eb45-4bff-a0b0-803c10ddb540",
+      "user_id": "917885b1-1158-4cf2-8819-c476110f93ce",
+      "type": "like",
+      "title": "有人喜欢你",
+      "content": "Alice Test 对你发送了喜欢",
+      "data": {
+        "userId": "1c3cb358-9924-49f2-997e-a7304347c19c"
+      },
+      "is_read": false,
+      "created_at": "2026-05-16T15:17:53.544Z"
+    },
+    {
+      "id": "25f5d584-94b1-46e5-896c-5cce5c541902",
+      "user_id": "917885b1-1158-4cf2-8819-c476110f93ce",
+      "type": "like",
+      "title": "有人喜欢你",
+      "content": "Alice Test 对你发送了喜欢",
+      "data": {
+        "userId": "1c3cb358-9924-49f2-997e-a7304347c19c",
+        "matchId": "097943b7-6541-460d-bf33-9d8c9d53814a"
+      },
+      "is_read": false,
+      "created_at": "2026-05-16T15:17:53.545Z"
+    },
+    {
+      "id": "4c8c8c2d-e689-4ec4-b825-c35275e7600e",
+      "user_id": "2ac82343-0a00-458c-82ad-2ff51f00ad36",
+      "type": "like",
+      "title": "有人喜欢你",
+      "content": "Alice Test 对你发送了喜欢",
+      "data": {
+        "userId": "1c3cb358-9924-49f2-997e-a7304347c19c"
+      },
+      "is_read": false,
+      "created_at": "2026-05-16T15:17:57.808Z"
+    },
+    {
+      "id": "5098293b-932f-478a-9bfd-100b9bdad325",
+      "user_id": "2ac82343-0a00-458c-82ad-2ff51f00ad36",
+      "type": "like",
+      "title": "有人喜欢你",
+      "content": "Alice Test 对你发送了喜欢",
+      "data": {
+        "userId": "1c3cb358-9924-49f2-997e-a7304347c19c",
+        "matchId": "2caeee58-771d-4977-a565-f6fa91264426"
+      },
+      "is_read": false,
+      "created_at": "2026-05-16T15:17:57.808Z"
+    },
+    {
+      "id": "5a87cda6-9c27-4b37-bd4e-70e55349ca27",
+      "user_id": "bd2b54dd-d522-49a6-b5cd-9aa846ce702e",
+      "type": "like",
+      "title": "有人喜欢你",
+      "content": "Alice Test 对你发送了喜欢",
+      "data": {
+        "userId": "1c3cb358-9924-49f2-997e-a7304347c19c"
+      },
+      "is_read": false,
+      "created_at": "2026-05-16T22:26:35.861Z"
+    },
+    {
+      "id": "33dced7b-0289-4e92-9756-6cc316c0774a",
+      "user_id": "bd2b54dd-d522-49a6-b5cd-9aa846ce702e",
+      "type": "like",
+      "title": "有人喜欢你",
+      "content": "Alice Test 对你发送了喜欢",
+      "data": {
+        "userId": "1c3cb358-9924-49f2-997e-a7304347c19c",
+        "matchId": "e7666edf-6bcc-47f8-9588-4eb402cbfdab"
+      },
+      "is_read": false,
+      "created_at": "2026-05-16T22:26:35.863Z"
+    },
+    {
+      "id": "c5116de3-3f59-4f56-9d47-5781eea98284",
+      "user_id": "1c3cb358-9924-49f2-997e-a7304347c19c",
+      "type": "comment",
+      "title": "有人评论了你的动态",
+      "content": "Amy 评论了你的动态: 欢迎",
+      "data": {
+        "type": "moment_comment",
+        "momentId": "9c365878-4578-4cbd-87d8-e8ec9ec01357",
+        "commentId": "3c874d36-b525-418b-baf9-aff819df76fb"
+      },
+      "is_read": true,
+      "created_at": "2026-05-16T22:31:12.258Z"
+    },
+    {
+      "id": "d7eac634-2f50-440f-8782-a7f7a506526a",
+      "user_id": "442dc7b9-a427-498b-a636-34c51c180d5c",
+      "type": "like",
+      "title": "有人赞了你的动态",
+      "content": "Alice Test 赞了你的动态",
+      "data": {
+        "type": "moment_like",
+        "momentId": "735b70dd-8b67-4c5c-b8a6-af4b4e9b8059"
+      },
+      "is_read": false,
+      "created_at": "2026-05-16T22:33:00.709Z"
+    },
+    {
+      "id": "a1b20f24-bf54-434f-b4af-8d5a04f9e8a1",
+      "user_id": "1c3cb358-9924-49f2-997e-a7304347c19c",
+      "type": "like",
+      "title": "有人赞了你的动态",
+      "content": "Amy 赞了你的动态",
+      "data": {
+        "type": "moment_like",
+        "momentId": "9c365878-4578-4cbd-87d8-e8ec9ec01357"
+      },
+      "is_read": true,
+      "created_at": "2026-05-16T22:31:04.266Z"
+    },
+    {
+      "id": "9b818fe6-a1e7-48a2-8293-da9e7be4b498",
+      "user_id": "442dc7b9-a427-498b-a636-34c51c180d5c",
+      "type": "like",
+      "title": "有人喜欢你",
+      "content": "Alice Test 对你发送了喜欢",
+      "data": {
+        "userId": "1c3cb358-9924-49f2-997e-a7304347c19c",
+        "matchId": "dae56f77-5c1d-4c5c-b405-a50339c719e2"
+      },
+      "is_read": false,
+      "created_at": "2026-05-16T23:51:21.527Z"
+    },
+    {
+      "id": "2ed2a5b1-aff9-48a6-bd49-4442f8271054",
+      "user_id": "442dc7b9-a427-498b-a636-34c51c180d5c",
+      "type": "like",
+      "title": "有人喜欢你",
+      "content": "Alice Test 对你发送了喜欢",
+      "data": {
+        "userId": "1c3cb358-9924-49f2-997e-a7304347c19c",
+        "matchId": "dae56f77-5c1d-4c5c-b405-a50339c719e2"
+      },
+      "is_read": false,
+      "created_at": "2026-05-16T23:51:51.075Z"
+    },
+    {
+      "id": "f41b5963-4edc-4800-b023-6b22d2188849",
+      "user_id": "442dc7b9-a427-498b-a636-34c51c180d5c",
+      "type": "like",
+      "title": "有人喜欢你",
+      "content": "Alice Test 对你发送了喜欢",
+      "data": {
+        "userId": "1c3cb358-9924-49f2-997e-a7304347c19c",
+        "matchId": "dae56f77-5c1d-4c5c-b405-a50339c719e2"
+      },
+      "is_read": false,
+      "created_at": "2026-05-16T23:51:59.217Z"
+    },
+    {
+      "id": "11b61e2c-6026-435b-b706-f68d2cb129ea",
+      "user_id": "442dc7b9-a427-498b-a636-34c51c180d5c",
+      "type": "like",
+      "title": "有人喜欢你",
+      "content": "Alice Test 对你发送了喜欢",
+      "data": {
+        "userId": "1c3cb358-9924-49f2-997e-a7304347c19c",
+        "matchId": "dae56f77-5c1d-4c5c-b405-a50339c719e2"
+      },
+      "is_read": false,
+      "created_at": "2026-05-16T23:52:07.878Z"
+    },
+    {
+      "id": "be2c354d-0175-44eb-ad8c-53f0f16909e0",
+      "user_id": "442dc7b9-a427-498b-a636-34c51c180d5c",
+      "type": "like",
+      "title": "有人喜欢你",
+      "content": "Alice Test 对你发送了喜欢",
+      "data": {
+        "userId": "1c3cb358-9924-49f2-997e-a7304347c19c",
+        "matchId": "dae56f77-5c1d-4c5c-b405-a50339c719e2"
+      },
+      "is_read": false,
+      "created_at": "2026-05-16T23:52:09.531Z"
+    },
+    {
+      "id": "3dba6fb6-c535-4b4e-bc34-eaf11c81382f",
+      "user_id": "1c3cb358-9924-49f2-997e-a7304347c19c",
+      "type": "like",
+      "title": "有人喜欢你",
+      "content": "Amy 对你发送了喜欢",
+      "data": {
+        "userId": "442dc7b9-a427-498b-a636-34c51c180d5c",
+        "matchId": "dae56f77-5c1d-4c5c-b405-a50339c719e2"
+      },
+      "is_read": false,
+      "created_at": "2026-05-16T23:53:33.698Z"
+    },
+    {
+      "id": "c6d43966-6011-46ed-a3a2-da594ed08ca1",
+      "user_id": "442dc7b9-a427-498b-a636-34c51c180d5c",
+      "type": "match",
+      "title": "匹配成功！",
+      "content": "你与 Alice Test 成功匹配",
+      "data": {
+        "userId": "1c3cb358-9924-49f2-997e-a7304347c19c",
+        "matchId": "dae56f77-5c1d-4c5c-b405-a50339c719e2"
+      },
+      "is_read": false,
+      "created_at": "2026-05-16T23:53:33.702Z"
+    },
+    {
+      "id": "96007f67-1002-4207-82d5-446aa6ac172f",
+      "user_id": "1c3cb358-9924-49f2-997e-a7304347c19c",
+      "type": "match",
+      "title": "匹配成功！",
+      "content": "你与 Amy 成功匹配",
+      "data": {
+        "userId": "442dc7b9-a427-498b-a636-34c51c180d5c",
+        "matchId": "dae56f77-5c1d-4c5c-b405-a50339c719e2"
+      },
+      "is_read": false,
+      "created_at": "2026-05-16T23:53:33.702Z"
+    }
+  ]
+}

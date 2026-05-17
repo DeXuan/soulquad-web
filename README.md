@@ -2,18 +2,20 @@
 
 一款基于 MBTI 性格测试的智能择偶匹配系统，帮助用户找到灵魂契合的伴侣。
 
-![Version](https://img.shields.io/badge/version-1.0.0-blue)
+![Version](https://img.shields.io/badge/version-1.1.0-blue)
 ![React](https://img.shields.io/badge/React-19.2.6-61dafb)
 ![TypeScript](https://img.shields.io/badge/TypeScript-6.0.3-3178c6)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
-## 最近更新 (v1.0.1)
+## 最近更新 (v1.1.0)
 
-- **动态广场** - 支持发布图文、点赞、评论，可跳转查看作者主页
-- **头像系统** - 升级为 DiceBear 动漫头像，支持自定义上传
-- **喜欢列表** - 我的喜欢支持点击查看心动嘉宾资料
-- **排行榜** - 显示用户真实动漫头像，按等级分类
-- **发现页** - 全屏头像展示，卡片式浏览体验
+- **智能匹配算法重写** - 全新推荐算法，综合考虑灵魂契合度、用户质量、新人扶持、多样性
+  - MBTI 加权匹配（I/E 维度最重要，占 15 分）
+  - 灵魂契合度计算：MBTI 36分 + 象限 12分 + 价值观 15分 + 兴趣 10分
+  - 用户质量评分：资料完整度 20分 + 活跃度 20分 + 等级加成 10分 + 灵魂分 10分
+  - 新人扶持：7天内注册 +8 分，14天 +6 分，30天 +4 分，90天 +2 分
+  - 多样性调整：避免连续展示相同象限或相同 MBTI 首字母的用户
+  - 最终排名：50% 灵魂契合 + 30% 用户质量 + 10% 新人扶持 + 10% 多样性
 
 ## 功能特点
 
@@ -27,16 +29,18 @@
 - 基于 MBTI 类型和灵魂象限计算契合度
 - 三种模式：相亲 / 交友 / 搭子
 - 支持城市筛选和条件过滤
+- 用户等级可见性：传奇可见所有，普通只能看到普通
 
 ### 💬 即时通讯
 - 实时聊天功能（Socket.IO）
+- 支持文字和图片消息
 - 匹配通知系统
 - 未读消息角标
 
 ### 📝 动态广场
 - 发布图文动态
+- 支持匿名发布（随机生成灵魂昵称如"灵魂A123"）
 - 点赞、评论、分享
-- 定位功能
 - 草稿自动保存
 
 ### 🏆 排行榜
@@ -48,22 +52,23 @@
 ### 前端
 - **React 19** + TypeScript
 - **Vite** 构建工具
-- **React Router** 路由管理
+- **React Router 7** 路由管理
 - **Socket.IO Client** 即时通讯
 - **CSS Variables** 主题系统（支持深色/浅色模式）
 
 ### 后端
 - **Express** Node.js 框架
 - **Socket.IO** 实时通信
-- **SQL.js** 浏览器端 SQLite 数据库
+- **PostgreSQL** 数据库（生产环境）
+- **SQL.js** 开发环境 SQLite
 - **REST API** 用户、匹配、消息、动态、通知完整接口
 
 ### 设计
 - 移动端优先
 - 玻璃态设计（Glassmorphism）
 - 渐变色主题
-- 响应式布局（适配 iPhone 16 Pro Max）
-- **DiceBear** 动漫头像生成
+- 响应式布局
+- **DiceBear** 可爱卡通头像（micah 风格，800px 高清）
 
 ## 项目结构
 
@@ -74,16 +79,21 @@ soulquad-web/
 │   │   ├── AvatarUpload.tsx
 │   │   ├── BottomTabBar.tsx
 │   │   ├── NotificationBell.tsx
+│   │   ├── Navbar.tsx
 │   │   └── ...
 │   ├── pages/         # 页面组件
-│   │   ├── Discover.tsx    # 发现/匹配
-│   │   ├── Messages.tsx    # 消息列表
-│   │   ├── Chat.tsx        # 私聊页面
-│   │   ├── Moments.tsx     # 动态广场
-│   │   ├── Leaderboard.tsx # 排行榜
-│   │   ├── Profile.tsx     # 个人中心
-│   │   ├── SoulTest.tsx   # 灵魂测试
-│   │   └── ...
+│   │   ├── Home.tsx          # 首页
+│   │   ├── Login.tsx         # 登录
+│   │   ├── Register.tsx      # 注册
+│   │   ├── SoulTest.tsx      # 灵魂测试
+│   │   ├── Discover.tsx      # 发现/匹配
+│   │   ├── Messages.tsx      # 消息列表
+│   │   ├── Chat.tsx          # 私聊页面
+│   │   ├── Moments.tsx      # 动态广场
+│   │   ├── Leaderboard.tsx   # 排行榜
+│   │   ├── Profile.tsx       # 个人中心
+│   │   ├── Dashboard.tsx     # 仪表盘
+│   │   └── Settings.tsx      # 设置
 │   ├── services/      # API 服务
 │   │   └── api.ts    # API 封装（支持 Mock 模式）
 │   ├── hooks/         # 自定义 Hooks
@@ -92,30 +102,42 @@ soulquad-web/
 │   ├── data/          # 静态数据
 │   │   └── mbti.ts   # MBTI 题目和象限数据
 │   ├── types/         # TypeScript 类型定义
-│   └── App.tsx        # 应用入口
+│   │   └── index.ts
+│   ├── App.tsx        # 应用入口
+│   └── index.css      # 全局样式
 ├── server/            # 后端服务
 │   ├── index.js       # Express + Socket.IO 入口
 │   ├── db/
-│   │   ├── database.js  # SQL.js 数据库初始化
-│   │   └── soulquad.db  # SQLite 数据库文件
+│   │   ├── database.js  # 数据库初始化
+│   │   ├── migrate.sql   # 数据库迁移
+│   │   └── soulquad.db   # SQLite 数据库文件
 │   └── routes/        # API 路由
 │       ├── auth.js        # 登录/注册
 │       ├── users.js       # 用户资料
-│       ├── matches.js     # 匹配系统
+│       ├── matches.js     # 匹配系统（智能推荐算法）
 │       ├── messages.js    # 私信
 │       ├── moments.js     # 动态广场
-│       ├── notifications.js  # 通知
+│       ├── notifications.js # 通知
 │       ├── ai.js          # AI 灵魂描述
 │       ├── soulTest.js    # MBTI 测试
 │       └── cities.js      # 城市数据
 ├── deploy/            # 部署配置
-│   ├── nginx.conf    # Nginx 配置
+│   ├── nginx.conf     # Nginx 配置
 │   ├── generate-ssl.sh  # SSL 证书生成
-│   └── .env.production.example
-├── electron/          # Electron 桌面端
+│   ├── deploy-to-server.sh
+│   ├── deploy-update.sh
+│   └── create-deploy-package.sh
+├── electron/           # Electron 桌面端
+│   ├── main.js
+│   └── preload.js
 ├── dist/              # 前端构建输出
+├── dist-server/       # 后端构建输出
+├── release/           # 发布包
+├── release-electron/  # Electron 发布包
 ├── package.json
 ├── vite.config.ts
+├── tsconfig.json
+├── CLAUDE.md          # 项目行为规范
 └── README.md
 ```
 
@@ -153,17 +175,62 @@ npm run build && npm run server:build
 npm run preview
 ```
 
+## 匹配算法详解
+
+### 灵魂契合度计算 (0-100分)
+
+| 维度 | 最高分 | 说明 |
+|------|--------|------|
+| MBTI 匹配 | 36分 | I/E(15分)、S/N(8分)、T/F(8分)、J/P(5分) |
+| 象限匹配 | 12分 | 相同灵魂象限 |
+| 价值观匹配 | 15分 | 每个共同价值观 +2.5 分 |
+| 兴趣匹配 | 10分 | 每个共同兴趣 +1.5 分 |
+
+### 用户质量评分 (0-50分)
+
+| 维度 | 最高分 | 说明 |
+|------|--------|------|
+| 资料完整度 | 20分 | 10 个字段完整度占比 |
+| 活跃度 | 20分 | 最近 1 小时 +20，24小时 +15，72小时 +10 |
+| 等级加成 | 10分 | 传奇 10，顶尖 8，优秀 5，普通 2 |
+| 灵魂分贡献 | 10分 | soul_score / 20 |
+
+### 新人扶持
+
+| 注册时间 | 加分 |
+|----------|------|
+| 7 天内 | +8 |
+| 14 天内 | +6 |
+| 30 天内 | +4 |
+| 90 天内 | +2 |
+
+### 最终排名权重
+
+- 50% 灵魂契合度
+- 30% 用户质量
+- 10% 新人扶持
+- 10% 多样性调整（避免连续展示相同象限/MBTI 用户）
+
 ## 部署指南
 
 ### 方式一：Windows 便携版（推荐）
 
 下载 `release-electron/SoulQuad-portable-1.0.0-win-x64.zip` 解压即用，无需安装。
 
-### 方式二：Docker 部署
+### 方式二：使用部署脚本
 
 ```bash
-docker-compose up -d
-docker-compose logs -f
+# 全新部署
+chmod +x deploy/deploy-to-server.sh
+./deploy/deploy-to-server.sh your-server-ip your-domain.com
+
+# 更新部署
+chmod +x deploy/deploy-update.sh
+./deploy/deploy-update.sh your-server-ip
+
+# 创建部署包
+chmod +x deploy/create-deploy-package.sh
+./deploy/create-deploy-package.sh
 ```
 
 ### 方式三：手动部署
@@ -171,7 +238,7 @@ docker-compose logs -f
 1. **安装依赖并构建**
 ```bash
 npm install
-npm run build && npm run server:build
+npm run build
 ```
 
 2. **配置 Nginx**
@@ -183,14 +250,7 @@ sudo nginx -t && sudo systemctl restart nginx
 
 3. **启动后端**
 ```bash
-npm run server:start
-```
-
-### 方式四：使用部署脚本
-
-```bash
-chmod +x deploy/deploy.sh
-./deploy/deploy.sh your-server-ip your-domain.com
+node dist-server/index.js
 ```
 
 ## 配置说明
@@ -224,7 +284,7 @@ CSS 变量定义在 `src/index.css` 中。
 | 登录 | `/login` | 用户登录 |
 | 注册 | `/register` | 用户注册 |
 | 灵魂测试 | `/soul-test` | MBTI 测试 |
-| 发现 | `/discover` | 匹配卡片流 |
+| 发现 | `/discover` | 匹配卡片流（智能推荐） |
 | 消息 | `/messages` | 聊天列表 |
 | 聊天 | `/chat/:matchId` | 私聊页面 |
 | 动态 | `/moments` | 社交动态 |
@@ -238,19 +298,53 @@ CSS 变量定义在 `src/index.css` 中。
 
 | 等级 | 说明 |
 |------|------|
-| 🏆 传奇 | 最高等级 |
-| ⭐ 顶尖 | 高等级 |
-| ✨ 优秀 | 中等等级 |
+| 🏆 传奇 | 最高等级，灵魂分数≥95，匹配数≥50 |
+| ⭐ 顶尖 | 高等级，灵魂分数≥85，匹配数≥30 |
+| ✨ 优秀 | 中等等级，灵魂分数≥70，匹配数≥10 |
 | 👤 普通 | 基础等级 |
 
 ### 灵魂象限
 
 | 象限 | 说明 |
 |------|------|
-| 🚀 探险家 | 勇于尝试、追求刺激 |
-| 🏗️ 建造者 | 脚踏实地、务实稳重 |
-| 🎨 艺术家 | 灵活敏捷、追求独特 |
-| 🤓 思想家 | 理性思考、善于分析 |
+| 🚀 探险家 (Explorer) | 勇于尝试、追求刺激 |
+| 🏗️ 建造者 (Builder) | 脚踏实地、务实稳重 |
+| 🎨 艺术家 (Artist) | 灵活敏捷、追求独特 |
+| 🤓 思想家 (Philosopher) | 理性思考、善于分析 |
+
+## 数据库
+
+### 表结构
+
+- **users** - 用户信息（包含 height, education, occupation, annual_income 等扩展字段）
+- **matches** - 匹配关系记录
+- **messages** - 即时消息
+- **notifications** - 通知系统
+- **moments** - 动态广场（含 is_anonymous, anonymous_name 字段）
+- **user_blocklist** - 用户黑名单
+
+### 头像方案
+
+使用 DiceBear micah 可爱卡通风格头像：
+```
+https://api.dicebear.com/7.x/micah/png?seed={username}&size=800&backgroundColor=ddeaf7,fde7d7,ffecd2,e8d5f5,d4e4f0
+```
+
+## 安全特性
+
+- JWT Token 认证（TOKEN_SECRET 环境变量）
+- Per-user 密码 Salt 加密
+- CORS 白名单机制
+- authMiddleware 保护所有需要认证的 API
+- 禁止 x-user-id 伪造用户身份
+
+## 测试账号
+
+| 用户名 | 密码 | 说明 |
+|--------|------|------|
+| alice | demo123 | 传奇用户，女 |
+| bob | demo123 | 顶尖用户，男 |
+| 其他 115 个用户 | demo123 | 完整用户资料 |
 
 ## License
 

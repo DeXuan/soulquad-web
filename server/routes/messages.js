@@ -1,15 +1,14 @@
 import { Router } from 'express';
 import crypto from 'crypto';
 import { query, get, all } from '../db/database.js';
+import { authMiddleware } from './auth.js';
 
 export const messageRoutes = Router();
 
-function getCurrentUserId(req) {
-  return req.headers['x-user-id'];
-}
+messageRoutes.use(authMiddleware);
 
 messageRoutes.get('/:matchId', async (req, res) => {
-  const userId = getCurrentUserId(req);
+  const userId = req.userId;
   const { matchId } = req.params;
 
   if (!userId) {
@@ -44,7 +43,7 @@ messageRoutes.get('/:matchId', async (req, res) => {
 });
 
 messageRoutes.post('/:matchId', async (req, res) => {
-  const userId = getCurrentUserId(req);
+  const userId = req.userId;
   const { matchId } = req.params;
   const { content, message_type } = req.body;
 
@@ -115,7 +114,7 @@ messageRoutes.post('/:matchId', async (req, res) => {
 });
 
 messageRoutes.post('/:matchId/read', async (req, res) => {
-  const userId = getCurrentUserId(req);
+  const userId = req.userId;
   const { matchId } = req.params;
 
   if (!userId) {
@@ -134,5 +133,42 @@ messageRoutes.post('/:matchId/read', async (req, res) => {
   } catch (err) {
     console.error('Mark read error:', err);
     res.status(500).json({ error: 'Failed to mark messages as read' });
+  }
+});
+
+messageRoutes.delete('/:matchId/:messageId', async (req, res) => {
+  const userId = req.userId;
+  const { matchId, messageId } = req.params;
+
+  if (!userId) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  try {
+    const message = await get('SELECT * FROM messages WHERE id = $1 AND match_id = $2', [messageId, matchId]);
+
+    if (!message) {
+      return res.status(404).json({ error: 'Message not found' });
+    }
+
+    if (message.sender_id !== userId) {
+      return res.status(403).json({ error: 'Cannot delete other user\'s message' });
+    }
+
+    // Only allow retract within 5 minutes
+    const messageTime = new Date(message.created_at);
+    const now = new Date();
+    const fiveMinutes = 5 * 60 * 1000;
+
+    if (now - messageTime > fiveMinutes) {
+      return res.status(400).json({ error: 'Can only retract messages within 5 minutes' });
+    }
+
+    await query('DELETE FROM messages WHERE id = $1', [messageId]);
+
+    res.json({ success: true, message: 'Message retracted' });
+  } catch (err) {
+    console.error('Retract message error:', err);
+    res.status(500).json({ error: 'Failed to retract message' });
   }
 });

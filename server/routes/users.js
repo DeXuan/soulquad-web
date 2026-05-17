@@ -213,11 +213,23 @@ userRoutes.get('/leaderboard', async (req, res) => {
 
 userRoutes.get('/tier/leaderboard', async (req, res) => {
   const tier = req.query.tier || 'all';
+  const type = req.query.type || 'hot';
+  const city = req.query.city;
 
   const validTiers = ['legend', 'top', 'excellent', 'ordinary', 'all'];
   if (!validTiers.includes(tier)) {
     return res.status(400).json({ error: 'Invalid tier' });
   }
+
+  const allowedOrderBy = {
+    hot: 'soul_score DESC',
+    new: 'created_at DESC',
+    city: 'soul_score DESC'
+  };
+  const orderBy = allowedOrderBy[type] || 'soul_score DESC';
+
+  let limitDate = new Date();
+  limitDate.setDate(limitDate.getDate() - 30);
 
   try {
     let query = `
@@ -227,15 +239,28 @@ userRoutes.get('/tier/leaderboard', async (req, res) => {
       WHERE profile_completed = true
     `;
 
-    if (tier !== 'all') {
-      query += ' AND user_tier = $1';
+    const params = [];
+
+    if (type === 'new') {
+      query += ' AND created_at > $1';
+      params.push(limitDate.toISOString());
     }
 
-    query += ' ORDER BY soul_score DESC LIMIT 20';
+    if (tier !== 'all') {
+      const paramIdx = params.length + 1;
+      query += ` AND user_tier = $${paramIdx}`;
+      params.push(tier);
+    }
 
-    const leaders = tier !== 'all'
-      ? await all(query, [tier])
-      : await all(query);
+    if (city) {
+      const paramIdx = params.length + 1;
+      query += ` AND city = $${paramIdx}`;
+      params.push(city);
+    }
+
+    query += ` ORDER BY ${orderBy} LIMIT 20`;
+
+    const leaders = await all(query, params);
 
     res.json(leaders);
   } catch (err) {
@@ -293,12 +318,46 @@ userRoutes.delete('/likes/:userId', async (req, res) => {
   }
 });
 
+// Create blocklist table if not exists (run once)
+async function ensureBlocklistTable() {
+  try {
+    await query(`
+      CREATE TABLE IF NOT EXISTS user_blocklist (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        blocked_user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, blocked_user_id)
+      )
+    `);
+  } catch (err) {
+    // Table might already exist
+  }
+}
+
+// Initialize blocklist table
+ensureBlocklistTable();
+
 userRoutes.get('/blocklist', async (req, res) => {
   const currentUser = await getCurrentUser(req);
   if (!currentUser) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
-  res.json([]);
+
+  try {
+    const blockedUsers = await all(`
+      SELECT u.id, u.nickname, u.avatar_url, u.mbti, u.soul_quadrant, u.user_tier
+      FROM user_blocklist b
+      JOIN users u ON b.blocked_user_id = u.id
+      WHERE b.user_id = $1
+      ORDER BY b.created_at DESC
+    `, [currentUser.id]);
+
+    res.json(blockedUsers);
+  } catch (err) {
+    console.error('Get blocklist error:', err);
+    res.status(500).json({ error: 'Failed to get blocklist' });
+  }
 });
 
 userRoutes.post('/block/:userId', async (req, res) => {
@@ -306,7 +365,29 @@ userRoutes.post('/block/:userId', async (req, res) => {
   if (!currentUser) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
-  res.json({ success: true, message: 'User blocked (stub)' });
+
+  const targetId = req.params.userId;
+  if (!targetId || targetId === currentUser.id) {
+    return res.status(400).json({ error: 'Invalid target user' });
+  }
+
+  try {
+    const targetUser = await get('SELECT id FROM users WHERE id = $1', [targetId]);
+    if (!targetUser) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    await query(`
+      INSERT INTO user_blocklist (id, user_id, blocked_user_id, created_at)
+      VALUES ($1, $2, $3, $4)
+      ON CONFLICT (user_id, blocked_user_id) DO NOTHING
+    `, [crypto.randomUUID(), currentUser.id, targetId, new Date().toISOString()]);
+
+    res.json({ success: true, message: 'User blocked' });
+  } catch (err) {
+    console.error('Block user error:', err);
+    res.status(500).json({ error: 'Failed to block user' });
+  }
 });
 
 userRoutes.delete('/block/:userId', async (req, res) => {
@@ -314,5 +395,21 @@ userRoutes.delete('/block/:userId', async (req, res) => {
   if (!currentUser) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
-  res.json({ success: true, message: 'User unblocked (stub)' });
+
+  const targetId = req.params.userId;
+  if (!targetId) {
+    return res.status(400).json({ error: 'Invalid target user' });
+  }
+
+  try {
+    await query(`
+      DELETE FROM user_blocklist
+      WHERE user_id = $1 AND blocked_user_id = $2
+    `, [currentUser.id, targetId]);
+
+    res.json({ success: true, message: 'User unblocked' });
+  } catch (err) {
+    console.error('Unblock user error:', err);
+    res.status(500).json({ error: 'Failed to unblock user' });
+  }
 });

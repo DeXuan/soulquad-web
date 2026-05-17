@@ -155,11 +155,10 @@ const mockApi = {
 
 async function fetchApi<T>(
   endpoint: string,
-  options: RequestInit = {}
+  options: RequestInit = {},
+  retries = 1
 ): Promise<T> {
   const token = localStorage.getItem('soulquad_token');
-  const userJson = localStorage.getItem('soulquad_user');
-  const user = userJson ? JSON.parse(userJson) : null;
 
   const headers: HeadersInit = {
     'Content-Type': 'application/json',
@@ -168,20 +167,33 @@ async function fetchApi<T>(
 
   if (token) {
     (headers as Record<string, string>)['Authorization'] = `Bearer ${token}`;
-    (headers as Record<string, string>)['x-user-id'] = user?.id || '';
   }
 
-  const response = await fetch(`${API_BASE}${endpoint}`, {
-    ...options,
-    headers
-  });
+  try {
+    const response = await fetch(`${API_BASE}${endpoint}`, {
+      ...options,
+      headers
+    });
 
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ message: 'Request failed' }));
-    throw new Error(error.message || 'Request failed');
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ message: 'Request failed' }));
+      const errorMsg = error.message || 'Request failed';
+      // Handle 401/403 - redirect to login
+      if (response.status === 401 || response.status === 403) {
+        localStorage.removeItem('soulquad_token');
+        localStorage.removeItem('soulquad_user');
+        window.location.href = '/login';
+      }
+      throw new Error(errorMsg);
+    }
+
+    return response.json();
+  } catch (err) {
+    if (retries > 0 && (err as Error).message === 'Request failed') {
+      return fetchApi<T>(endpoint, options, retries - 1);
+    }
+    throw err;
   }
-
-  return response.json();
 }
 
 export interface SoulDescription {
@@ -229,6 +241,13 @@ export const api = {
     }),
 
   logout: () => {
+    const token = localStorage.getItem('soulquad_token');
+    if (token) {
+      fetch(`${API_BASE}/auth/logout`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      }).catch(() => {});
+    }
     localStorage.removeItem('soulquad_token');
     localStorage.removeItem('soulquad_user');
   },

@@ -2,12 +2,11 @@ import { Router } from 'express';
 import crypto from 'crypto';
 import { query, get, all } from '../db/database.js';
 import { createNotification } from './notifications.js';
+import { authMiddleware } from './auth.js';
 
 export const momentRoutes = Router();
 
-function getCurrentUserId(req) {
-  return req.headers['x-user-id'];
-}
+momentRoutes.use(authMiddleware);
 
 function generateAnonymousName() {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
@@ -41,7 +40,7 @@ function formatMoment(moment, userId) {
 }
 
 momentRoutes.get('/', async (req, res) => {
-  const userId = getCurrentUserId(req);
+  const userId = req.userId;
   if (!userId) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
@@ -86,7 +85,7 @@ momentRoutes.get('/', async (req, res) => {
 });
 
 momentRoutes.get('/user/:userId', async (req, res) => {
-  const userId = getCurrentUserId(req);
+  const userId = req.userId;
   if (!userId) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
@@ -113,7 +112,7 @@ momentRoutes.get('/user/:userId', async (req, res) => {
 });
 
 momentRoutes.post('/', async (req, res) => {
-  const userId = getCurrentUserId(req);
+  const userId = req.userId;
   if (!userId) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
@@ -157,7 +156,7 @@ momentRoutes.post('/', async (req, res) => {
 });
 
 momentRoutes.delete('/:momentId', async (req, res) => {
-  const userId = getCurrentUserId(req);
+  const userId = req.userId;
   if (!userId) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
@@ -179,7 +178,7 @@ momentRoutes.delete('/:momentId', async (req, res) => {
 });
 
 momentRoutes.post('/:momentId/like', async (req, res) => {
-  const userId = getCurrentUserId(req);
+  const userId = req.userId;
   if (!userId) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
@@ -207,10 +206,10 @@ momentRoutes.post('/:momentId/like', async (req, res) => {
         const liker = await get('SELECT nickname FROM users WHERE id = $1', [userId]);
         const notification = await createNotification(
           moment.user_id,
-          'like',
+          'moment_like',
           '有人赞了你的动态',
           `${liker?.nickname || '某人'} 赞了你的动态`,
-          { momentId: req.params.momentId, type: 'moment_like' }
+          { momentId: req.params.momentId, type: 'moment_like', userId: userId }
         );
 
         // Emit socket event for real-time notification
@@ -234,7 +233,7 @@ momentRoutes.post('/:momentId/like', async (req, res) => {
 });
 
 momentRoutes.get('/:momentId/comments', async (req, res) => {
-  const userId = getCurrentUserId(req);
+  const userId = req.userId;
   if (!userId) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
@@ -256,7 +255,7 @@ momentRoutes.get('/:momentId/comments', async (req, res) => {
 });
 
 momentRoutes.post('/:momentId/comments', async (req, res) => {
-  const userId = getCurrentUserId(req);
+  const userId = req.userId;
   if (!userId) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
@@ -295,10 +294,10 @@ momentRoutes.post('/:momentId/comments', async (req, res) => {
       const commenter = await get('SELECT nickname FROM users WHERE id = $1', [userId]);
       await createNotification(
         moment.user_id,
-        'like',
+        'moment_comment',
         '有人评论了你的动态',
         `${commenter?.nickname || '某人'} 评论了你的动态: ${content.slice(0, 50)}${content.length > 50 ? '...' : ''}`,
-        { momentId: req.params.momentId, commentId: id, type: 'moment_comment' }
+        { momentId: req.params.momentId, commentId: id, type: 'moment_comment', userId: userId }
       );
 
       // Emit socket event for real-time notification

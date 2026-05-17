@@ -17,7 +17,7 @@ export function Login() {
 
     try {
       await login(username, password);
-      navigate('/dashboard');
+      navigate('/discover');
     } catch (err) {
       setError(err instanceof Error ? err.message : '登录失败');
     } finally {

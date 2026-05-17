@@ -1,0 +1,33 @@
+{
+  "metadata": {
+    "exportedAt": "2026-05-17T08:10:49.181Z",
+    "rowCount": 0,
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "nullable": false,
+        "default": "gen_random_uuid()"
+      },
+      {
+        "name": "user_id",
+        "type": "uuid",
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "blocked_user_id",
+        "type": "uuid",
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp without time zone",
+        "nullable": true,
+        "default": "CURRENT_TIMESTAMP"
+      }
+    ]
+  },
+  "data": []
+}

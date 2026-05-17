@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls -la \"c:\\\\Users\\\\gdx\\\\soulquad-web\\\\server\\\\db\")",
+      "Read(//c/Users/gdx/soulquad-web/server/db/**)",
+      "Read(//c/Users/gdx/soulquad-web/server/routes/**)"
+    ]
+  }
+}

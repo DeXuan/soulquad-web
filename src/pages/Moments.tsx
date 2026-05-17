@@ -25,6 +25,7 @@ export function Moments() {
 
   const loadMoments = async (isLoadMore = false) => {
     try {
+      if (!isLoadMore) setPage(1);
       const p = isLoadMore ? page : 1;
       const data = await api.getMoments(p, 20);
       if (isLoadMore) {
@@ -33,7 +34,6 @@ export function Moments() {
         setMoments(data.moments);
       }
       setHasMore(data.hasMore);
-      if (!isLoadMore) setPage(1);
     } catch (err) {
       console.error('Failed to load moments:', err);
     } finally {
@@ -509,7 +509,7 @@ function CreateMomentModal({ onClose, onSuccess }: { onClose: () => void; onSucc
         const img = new Image();
         img.onload = () => {
           const canvas = document.createElement('canvas');
-          const maxWidth = 1200; // Max width to prevent huge images
+          const maxWidth = 800; // Max width to prevent huge images
           const scale = img.width > maxWidth ? maxWidth / img.width : 1;
           canvas.width = img.width * scale;
           canvas.height = img.height * scale;

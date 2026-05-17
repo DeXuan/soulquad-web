@@ -7,11 +7,11 @@ let pool = null;
 
 export async function initDb() {
   pool = new Pool({
-    host: process.env.PG_HOST || 'localhost',
+    host: process.env.PG_HOST || '47.116.77.67',
     port: process.env.PG_PORT || 5432,
     database: process.env.PG_DATABASE || 'soulquad',
-    user: process.env.PG_USER || 'postgres',
-    password: process.env.PG_PASSWORD || 'postgres',
+    user: process.env.PG_USER || 'soulquad_user',
+    password: process.env.PG_PASSWORD || 'SoulQuad2024!',
   });
 
   // Test connection
@@ -142,10 +142,13 @@ async function createTables() {
 
     // Migration: Add new columns to existing tables
     const migrations = [
+      'ALTER TABLE users ADD COLUMN IF NOT EXISTS password_salt VARCHAR(64) DEFAULT \'\'',
       'ALTER TABLE users ADD COLUMN IF NOT EXISTS height INTEGER DEFAULT 0',
       "ALTER TABLE users ADD COLUMN IF NOT EXISTS education VARCHAR(50) DEFAULT ''",
       "ALTER TABLE users ADD COLUMN IF NOT EXISTS occupation VARCHAR(100) DEFAULT ''",
       'ALTER TABLE users ADD COLUMN IF NOT EXISTS annual_income INTEGER DEFAULT 0',
+      'ALTER TABLE users ADD COLUMN IF NOT EXISTS city VARCHAR(100) DEFAULT \'\'',
+      'ALTER TABLE users ADD COLUMN IF NOT EXISTS last_active TIMESTAMP',
       'ALTER TABLE moments ADD COLUMN IF NOT EXISTS is_anonymous BOOLEAN DEFAULT false',
       "ALTER TABLE moments ADD COLUMN IF NOT EXISTS anonymous_name VARCHAR(50) DEFAULT ''"
     ];
@@ -155,6 +158,39 @@ async function createTables() {
         await client.query(migration);
       } catch (err) {
         // Ignore errors for columns that might already exist
+      }
+    }
+
+    // Create user_blocklist table if not exists
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS user_blocklist (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        blocked_user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, blocked_user_id)
+      )
+    `);
+
+    // Create indexes for performance (ignore if exists)
+    const indexes = [
+      'CREATE INDEX IF NOT EXISTS idx_users_city ON users(city)',
+      'CREATE INDEX IF NOT EXISTS idx_users_last_active ON users(last_active)',
+      'CREATE INDEX IF NOT EXISTS idx_users_mbti ON users(mbti)',
+      'CREATE INDEX IF NOT EXISTS idx_users_soul_quadrant ON users(soul_quadrant)',
+      'CREATE INDEX IF NOT EXISTS idx_users_profile_completed ON users(profile_completed)',
+      'CREATE INDEX IF NOT EXISTS idx_matches_mutual ON matches(mutual_liked)',
+      'CREATE INDEX IF NOT EXISTS idx_notifications_user_unread ON notifications(user_id) WHERE is_read = false',
+      'CREATE INDEX IF NOT EXISTS idx_moments_created_at ON moments(created_at DESC)',
+      'CREATE INDEX IF NOT EXISTS idx_blocklist_user ON user_blocklist(user_id)',
+      'CREATE INDEX IF NOT EXISTS idx_blocklist_blocked ON user_blocklist(blocked_user_id)'
+    ];
+
+    for (const idx of indexes) {
+      try {
+        await client.query(idx);
+      } catch (err) {
+        // Ignore errors for indexes that might already exist
       }
     }
 

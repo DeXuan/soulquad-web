@@ -1,15 +1,14 @@
 import { Router } from 'express';
 import crypto from 'crypto';
 import { query, get, all } from '../db/database.js';
+import { authMiddleware } from './auth.js';
 
 export const notificationRoutes = Router();
 
-function getCurrentUserId(req) {
-  return req.headers['x-user-id'];
-}
+notificationRoutes.use(authMiddleware);
 
 notificationRoutes.get('/', async (req, res) => {
-  const userId = getCurrentUserId(req);
+  const userId = req.userId;
   if (!userId) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
@@ -34,7 +33,7 @@ notificationRoutes.get('/', async (req, res) => {
 });
 
 notificationRoutes.get('/unread-count', async (req, res) => {
-  const userId = getCurrentUserId(req);
+  const userId = req.userId;
   if (!userId) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
@@ -53,7 +52,7 @@ notificationRoutes.get('/unread-count', async (req, res) => {
 });
 
 notificationRoutes.post('/mark-read/:id', async (req, res) => {
-  const userId = getCurrentUserId(req);
+  const userId = req.userId;
   if (!userId) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
@@ -73,7 +72,7 @@ notificationRoutes.post('/mark-read/:id', async (req, res) => {
 });
 
 notificationRoutes.post('/mark-all-read', async (req, res) => {
-  const userId = getCurrentUserId(req);
+  const userId = req.userId;
   if (!userId) {
     return res.status(401).json({ error: 'Unauthorized' });
   }

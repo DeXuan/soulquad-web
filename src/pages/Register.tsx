@@ -16,13 +16,33 @@ export function Register() {
     e.preventDefault();
     setError('');
 
-    if (password !== confirmPassword) {
-      setError('两次输入的密码不一致');
+    // Validation
+    if (!username.trim()) {
+      setError('用户名不能为空');
       return;
     }
-
+    if (username.length < 3 || username.length > 20) {
+      setError('用户名长度需要在 3-20 个字符之间');
+      return;
+    }
+    if (!/^[a-zA-Z0-9_]+$/.test(username)) {
+      setError('用户名只能包含字母、数字和下划线');
+      return;
+    }
+    if (!nickname.trim()) {
+      setError('昵称不能为空');
+      return;
+    }
+    if (nickname.length > 20) {
+      setError('昵称长度不能超过 20 个字符');
+      return;
+    }
     if (password.length < 6) {
       setError('密码至少需要 6 个字符');
+      return;
+    }
+    if (password !== confirmPassword) {
+      setError('两次输入的密码不一致');
       return;
     }
 

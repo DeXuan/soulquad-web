@@ -8,6 +8,17 @@
 -- MIGRATIONS FOR USERS TABLE
 -- ============================================
 
+-- Add password_salt column for enhanced password security
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'password_salt') THEN
+    ALTER TABLE users ADD COLUMN password_salt VARCHAR(64) DEFAULT '';
+    RAISE NOTICE 'Added password_salt column to users';
+  ELSE
+    RAISE NOTICE 'password_salt column already exists in users';
+  END IF;
+END $$;
+
 -- Add height column if not exists
 DO $$
 BEGIN

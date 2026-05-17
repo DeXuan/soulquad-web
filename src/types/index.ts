@@ -7,7 +7,7 @@ export type UserTier = 'ordinary' | 'excellent' | 'top' | 'legend';
 
 export type Gender = 'male' | 'female' | 'other';
 
-export type NotificationType = 'match' | 'message' | 'like' | 'daily_pick' | 'system';
+export type NotificationType = 'match' | 'message' | 'like' | 'comment' | 'moment_like' | 'moment_comment' | 'daily_pick' | 'system';
 
 export interface Notification {
   id: string;
@@ -51,7 +51,7 @@ export interface User {
 
 export interface SoulTest {
   id: string;
-  oder_id: string;
+  user_id: string;
   mbti_result: MBTI | null;
   values: string[];
   interests: string[];
@@ -63,6 +63,8 @@ export interface Match {
   id: string;
   oder_a_id: string;
   oder_b_id: string;
+  user_a_id: string;
+  user_b_id: string;
   soulmate_index: number;
   user_a_liked: boolean;
   user_b_liked: boolean;

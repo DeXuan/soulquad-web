@@ -1,14 +1,13 @@
 import { Router } from 'express';
 import { query, get } from '../db/database.js';
+import { authMiddleware } from './auth.js';
 
 export const soulTestRoutes = Router();
 
-function getCurrentUserId(req) {
-  return req.headers['x-user-id'];
-}
+soulTestRoutes.use(authMiddleware);
 
 soulTestRoutes.post('/', async (req, res) => {
-  const userId = getCurrentUserId(req);
+  const userId = req.userId;
   if (!userId) {
     return res.status(401).json({ error: 'Unauthorized' });
   }

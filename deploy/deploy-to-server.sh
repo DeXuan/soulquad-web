@@ -1,7 +1,8 @@
 #!/bin/bash
 # SoulQuad 一键部署脚本
 # 支持: Debian/Ubuntu, RHEL/Rocky/AlmaLinux/CentOS
-# 使用方法: ./deploy-to-server.sh
+# 使用方法: ./deploy-to-server.sh [git_url]
+#   git_url: 可选，Git 仓库地址，默认使用当前目录
 
 set -e
 
@@ -10,6 +11,7 @@ PROJECT_DIR="/var/www/soulquad"
 DB_NAME="soulquad"
 DB_USER="soulquad_user"
 DB_PASS="SoulQuad2024!"
+GIT_URL="${1:-}"  # 可传入 Git URL，否则使用当前目录
 SERVER_IP=$(curl -s ifconfig.me || echo "YOUR_SERVER_IP")
 
 # ============== 颜色 ==============
@@ -93,9 +95,30 @@ open_firewall() {
     esac
 }
 
+# ============== Git 克隆项目 ==============
+clone_project() {
+    echo -e "${YELLOW}[1/8] 克隆项目...${NC}"
+
+    if [ -z "$GIT_URL" ]; then
+        echo -e "${YELLOW}  未指定 Git URL，使用当前目录${NC}"
+        return
+    fi
+
+    if [ -d "$PROJECT_DIR" ]; then
+        echo -e "${YELLOW}  项目已存在，更新代码...${NC}"
+        cd "$PROJECT_DIR"
+        git pull origin main 2>/dev/null || git pull origin master 2>/dev/null || echo "更新失败，使用现有代码"
+    else
+        echo -e "${YELLOW}  克隆 Git 仓库: $GIT_URL${NC}"
+        git clone "$GIT_URL" "$PROJECT_DIR"
+    fi
+
+    echo -e "${GREEN}  项目克隆完成${NC}"
+}
+
 # ============== PostgreSQL 安装 ==============
 install_postgresql() {
-    echo -e "${YELLOW}[1/7] 安装 PostgreSQL...${NC}"
+    echo -e "${YELLOW}[2/8] 安装 PostgreSQL...${NC}"
 
     case $OS_FAMILY in
         debian)
@@ -124,7 +147,7 @@ install_postgresql() {
 
 # ============== PostgreSQL 配置 ==============
 configure_postgresql() {
-    echo -e "${YELLOW}[2/7] 配置 PostgreSQL...${NC}"
+    echo -e "${YELLOW}[3/8] 配置 PostgreSQL...${NC}"
 
     # PostgreSQL 数据目录
     PG_DATA=$(su - postgres -c "psql -t -c 'SHOW data_directory;'" 2>/dev/null | tr -d '[:space:]')
@@ -167,7 +190,7 @@ configure_postgresql() {
 
 # ============== Node.js 安装 ==============
 install_nodejs() {
-    echo -e "${YELLOW}[3/7] 安装 Node.js...${NC}"
+    echo -e "${YELLOW}[4/8] 安装 Node.js...${NC}"
 
     if command -v node &>/dev/null; then
         echo -e "${GREEN}  Node.js 已安装: $(node -v)${NC}"
@@ -189,26 +212,29 @@ install_nodejs() {
     echo -e "${GREEN}  Node.js 安装完成: $(node -v)${NC}"
 }
 
-# ============== 部署项目 ==============
-deploy_project() {
-    echo -e "${YELLOW}[4/7] 部署项目...${NC}"
-
-    mkdir -p "$PROJECT_DIR"
-
-    # rsync 复制项目文件（排除 node_modules, .git, dist）
-    rsync -avz --exclude='node_modules' --exclude='.git' --exclude='dist' \
-          --exclude='release*' --exclude='electron' --exclude='build' \
-          --exclude='*.log' --exclude='soulquad-data.sql' \
-          . "$PROJECT_DIR/"
+# ============== 安装依赖 ==============
+install_dependencies() {
+    echo -e "${YELLOW}[5/8] 安装项目依赖...${NC}"
 
     cd "$PROJECT_DIR"
-    npm install
-    echo -e "${GREEN}  项目部署完成${NC}"
+
+    # 清理旧的 node_modules 和 package-lock.json（如果有）
+    if [ -d "node_modules" ]; then
+        rm -rf node_modules package-lock.json
+    fi
+
+    # 先安装生产依赖（跳过 devDependencies 中的 electron 等）
+    npm install --omit=dev
+
+    # 单独安装构建工具（vite 和 typescript）
+    npm install vite typescript --save-dev --ignore-scripts
+
+    echo -e "${GREEN}  依赖安装完成${NC}"
 }
 
 # ============== 数据库迁移 ==============
 run_migration() {
-    echo -e "${YELLOW}[5/7] 运行数据库迁移...${NC}"
+    echo -e "${YELLOW}[6/8] 运行数据库迁移...${NC}"
 
     if [ -f "$PROJECT_DIR/server/db/migrate.sql" ]; then
         su - postgres -c "psql -d $DB_NAME -f $PROJECT_DIR/server/db/migrate.sql" || echo "迁移完成"
@@ -220,51 +246,89 @@ run_migration() {
 
 # ============== 环境变量配置 ==============
 configure_env() {
-    echo -e "${YELLOW}[6/7] 配置环境变量...${NC}"
+    echo -e "${YELLOW}[7/8] 配置环境变量和构建...${NC}"
 
-    cat > "$PROJECT_DIR/.env" << EOF
+    cd "$PROJECT_DIR"
+
+    # 修复 Chat.tsx 中未使用的 message 变量（避免 TypeScript 错误）
+    if [ -f "src/pages/Chat.tsx" ]; then
+        sed -i 's/const message = await api.sendMessage/await api.sendMessage/' src/pages/Chat.tsx 2>/dev/null || true
+    fi
+
+    # 修复 API 地址（使用相对路径）
+    if [ -f "src/services/api.ts" ]; then
+        sed -i "s|const API_BASE = 'http://localhost:3001/api';|const API_BASE = '/api';|" src/services/api.ts 2>/dev/null || true
+        sed -i "s|const API_BASE = 'http://localhost:3000/api';|const API_BASE = '/api';|" src/services/api.ts 2>/dev/null || true
+    fi
+
+    # 创建 .env 文件
+    cat > ".env" << 'ENVEOF'
 NODE_ENV=production
 PORT=3000
 
-PG_HOST=localhost
+PG_HOST=47.116.77.67
 PG_PORT=5432
-PG_DATABASE=$DB_NAME
-PG_USER=$DB_USER
-PG_PASSWORD=$DB_PASS
+PG_DATABASE=soulquad
+PG_USER=soulquad_user
+PG_PASSWORD=SoulQuad2024!
 
-TOKEN_SECRET=SoulQuad-Secret-Key-2024-$(date +%s)
+ALLOWED_ORIGINS=http://SERVER_IP_PLACEHOLDER:3000,http://localhost:5173,http://localhost:3000
+TOKEN_SECRET=SoulQuad-Secret-Key-2024
 CORS_ORIGIN=*
+ENVEOF
+
+    # 替换为实际 IP
+    sed -i "s/SERVER_IP_PLACEHOLDER/$SERVER_IP/g" .env
+
+    # 创建 PM2 ecosystem 配置
+    cat > "ecosystem.config.cjs" << 'EOF'
+module.exports = {
+  apps: [{
+    name: 'soulquad',
+    script: 'server/index.js',
+    env_production: {
+      NODE_ENV: 'production',
+      PORT: 3000,
+      PG_HOST: '47.116.77.67',
+      PG_PORT: 5432,
+      PG_DATABASE: 'soulquad',
+      PG_USER: 'soulquad_user',
+      PG_PASSWORD: 'SoulQuad2024!',
+      ALLOWED_ORIGINS: 'http://SERVER_IP_PLACEHOLDER:3000,http://localhost:5173,http://localhost:3000'
+    }
+  }]
+}
 EOF
 
-    # 修复 API 地址（使用相对路径，通过 Nginx 代理）
-    sed -i "s|const API_BASE = 'http://localhost:3001/api';|const API_BASE = '/api';|" "$PROJECT_DIR/src/services/api.ts" 2>/dev/null || true
+    sed -i "s/SERVER_IP_PLACEHOLDER/$SERVER_IP/g" ecosystem.config.cjs
 
     # 构建前端
     echo "  构建前端..."
-    npm run build
+    node ./node_modules/vite/bin/vite.js build
 
     echo -e "${GREEN}  环境变量配置完成${NC}"
 }
 
 # ============== 启动服务 ==============
-start_service() {
-    echo -e "${YELLOW}[7/7] 启动服务...${NC}"
+start_pm2_service() {
+    echo -e "${YELLOW}[8/8] 启动服务...${NC}"
+
+    cd "$PROJECT_DIR"
 
     # 停止旧进程
-    cd "$PROJECT_DIR"
     pm2 delete soulquad 2>/dev/null || true
 
     # 启动应用
-    pm2 start server/index.js --name soulquad
+    pm2 start ecosystem.config.cjs
     pm2 save
     pm2 startup 2>/dev/null || true
 
     # 配置 Nginx
-    if [ -f "$PROJECT_DIR/deploy/nginx.conf" ]; then
+    if [ -f "deploy/nginx.conf" ]; then
         NGINX_CONF="/etc/nginx/sites-available/soulquad"
         NGINX_ENABLED="/etc/nginx/sites-enabled/soulquad"
 
-        cp "$PROJECT_DIR/deploy/nginx.conf" "$NGINX_CONF"
+        cp deploy/nginx.conf "$NGINX_CONF"
         ln -sf "$NGINX_CONF" "$NGINX_ENABLED" 2>/dev/null || true
         nginx -t && systemctl reload nginx
     fi
@@ -273,6 +337,9 @@ start_service() {
     open_firewall 80/tcp
     open_firewall 443/tcp
     open_firewall 3000/tcp
+
+    # 等待几秒后检查状态
+    sleep 3
 
     echo -e "${GREEN}========================================${NC}"
     echo -e "${GREEN}  部署完成!${NC}"
@@ -288,11 +355,19 @@ start_service() {
     echo -e "  User: $DB_USER"
     echo -e "  Password: $DB_PASS"
     echo ""
+    echo -e "登录账号:"
+    echo -e "  alice, bob, carol, david, emma, frank"
+    echo -e "  或 user_f_1, user_f_2, ... user_m_1, ..."
+    echo -e "  密码: demo123"
+    echo ""
     echo -e "常用命令:"
     echo -e "  查看日志: pm2 logs soulquad"
     echo -e "  重启服务: pm2 restart soulquad"
     echo -e "  查看状态: pm2 status"
     echo ""
+
+    # 显示启动日志
+    pm2 logs soulquad --lines 15
 }
 
 # ============== 主流程 ==============
@@ -310,13 +385,15 @@ main() {
         exit 1
     fi
 
+    # 执行各步骤
+    clone_project
     install_postgresql
     configure_postgresql
     install_nodejs
-    deploy_project
+    install_dependencies
     run_migration
     configure_env
-    start_service
+    start_pm2_service
 }
 
 main "$@"

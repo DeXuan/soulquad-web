@@ -5,7 +5,7 @@ import { useAuth } from '../hooks/useAuth';
 import { Match, User, Notification } from '../types';
 import { QUADRANT_INFO } from '../data/mbti';
 
-type MessageTab = 'match' | 'chat' | 'system';
+type MessageTab = 'match' | 'chat' | 'social' | 'system';
 
 export function Messages() {
   const { user } = useAuth();
@@ -70,6 +70,87 @@ export function Messages() {
     return date.toLocaleDateString('zh-CN');
   };
 
+  // Start chat with a user (find or create match)
+  const handleStartChat = async (targetUserId: string) => {
+    if (!targetUserId) {
+      alert('无法确定用户信息');
+      return;
+    }
+    try {
+      // Try to find existing match
+      const matchList = await api.getMatches();
+      const existingMatch = matchList.find(m =>
+        (m.oder_a_id === user?.id && m.oder_b_id === targetUserId) ||
+        (m.oder_a_id === targetUserId && m.oder_b_id === user?.id)
+      );
+
+      if (existingMatch) {
+        if (existingMatch.mutual_liked) {
+          navigate(`/chat/${existingMatch.id}`);
+        } else {
+          // Try to like back to create mutual match
+          try {
+            const result = await api.likeUser(targetUserId);
+            if (result.matched) {
+              const allMatches = await api.getMatches();
+              const newMatch = allMatches.find(m =>
+                (m.oder_a_id === user?.id && m.oder_b_id === targetUserId) ||
+                (m.oder_a_id === targetUserId && m.oder_b_id === user?.id)
+              );
+              if (newMatch) {
+                navigate(`/chat/${newMatch.id}`);
+              }
+            } else {
+              alert('你们还不是匹配状态，已发送喜欢等待对方回应');
+            }
+          } catch {
+            alert('你们还不是匹配状态，无法私聊');
+          }
+        }
+      } else {
+        // Send like to create connection
+        const result = await api.likeUser(targetUserId);
+        if (result.matched) {
+          const allMatches = await api.getMatches();
+          const newMatch = allMatches.find(m =>
+            (m.oder_a_id === user?.id && m.oder_b_id === targetUserId) ||
+            (m.oder_a_id === targetUserId && m.oder_b_id === user?.id)
+          );
+          if (newMatch) {
+            navigate(`/chat/${newMatch.id}`);
+          }
+        } else {
+          alert('已发送喜欢，等待对方回应后即可私聊');
+        }
+      }
+    } catch (err) {
+      console.error('Failed to start chat:', err);
+      alert('操作失败，请重试');
+    }
+  };
+
+  // Get liker/commenter user ID from moment likes/comments if not in notification data
+  const getInteractingUserId = async (notifData: any): Promise<string | null> => {
+    // If userId is directly in data, use it
+    if (notifData.userId) return notifData.userId;
+    if (notifData.targetUserId) return notifData.targetUserId;
+
+    // Try to get from moment likes - find who liked this moment most recently (excluding current user)
+    if (notifData.momentId) {
+      try {
+        const comments = await api.getMomentComments(notifData.momentId);
+        if (comments && comments.length > 0) {
+          // Get the most recent comment's user
+          const latestComment = comments[comments.length - 1];
+          return latestComment.user_id;
+        }
+      } catch {
+        // ignore
+      }
+    }
+    return null;
+  };
+
   if (loading) {
     return (
       <div className="page">
@@ -105,6 +186,12 @@ export function Messages() {
           >
             🔔 系统
             {unreadSystemCount > 0 && <span className="tab-badge" />}
+          </button>
+          <button
+            className={`message-tab ${activeTab === 'social' ? 'active' : ''}`}
+            onClick={() => setActiveTab('social')}
+          >
+            💬 社交
           </button>
         </div>
 
@@ -229,42 +316,129 @@ export function Messages() {
           </div>
         )}
 
-        {/* System Notifications */}
-        {activeTab === 'system' && (
+        {/* Social Notifications (Likes & Comments on Moments) */}
+        {activeTab === 'social' && (
           <div>
-            {notifications.filter(n => n.type === 'system').length === 0 ? (
+            {notifications.filter(n => n.type === 'moment_like' || n.type === 'moment_comment' || n.type === 'like' || n.type === 'comment').length === 0 ? (
               <div className="card" style={{ textAlign: 'center', padding: '3rem' }}>
-                <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>🔔</div>
-                <h3 style={{ marginBottom: '0.5rem' }}>暂无系统通知</h3>
+                <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>💬</div>
+                <h3 style={{ marginBottom: '0.5rem' }}>暂无社交互动</h3>
                 <p style={{ color: 'var(--text-secondary)' }}>
-                  系统消息会在这里显示
+                  发布动态后，有人点赞或评论会在这里显示
                 </p>
               </div>
             ) : (
               <div>
                 {notifications
-                  .filter(n => n.type === 'system')
-                  .map(notif => (
-                    <div
-                      key={notif.id}
-                      style={{ display: 'flex', gap: '12px', padding: '14px 16px', background: notif.read ? 'var(--bg-card)' : 'var(--bg-hover)', borderRadius: '12px', marginBottom: '12px' }}
-                      onClick={async () => {
-                        if (!notif.read) {
-                          await api.markNotificationRead(notif.id);
-                          loadData();
-                        }
-                      }}
-                    >
-                      <div style={{ width: '44px', height: '44px', borderRadius: '50%', background: 'linear-gradient(135deg, #64748b, #475569)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.25rem', flexShrink: 0 }}>
-                        📢
+                  .filter(n => n.type === 'moment_like' || n.type === 'moment_comment' || n.type === 'like' || n.type === 'comment')
+                  .map(notif => {
+                    const notifData = notif.data && typeof notif.data === 'object' ? notif.data : {};
+                    return (
+                      <div
+                        key={notif.id}
+                        style={{
+                          display: 'flex',
+                          gap: '12px',
+                          padding: '14px 16px',
+                          background: notif.read ? 'var(--bg-card)' : 'var(--bg-hover)',
+                          borderRadius: '12px',
+                          marginBottom: '12px',
+                          flexDirection: 'column'
+                        }}
+                        onClick={async () => {
+                          if (!notif.read) {
+                            await api.markNotificationRead(notif.id);
+                            loadData();
+                          }
+                        }}
+                      >
+                        {/* Header row */}
+                        <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+                          <div style={{
+                            width: '44px',
+                            height: '44px',
+                            borderRadius: '50%',
+                            background: notif.type.includes('comment') ? 'linear-gradient(135deg, #22c55e, #16a34a)' : 'linear-gradient(135deg, #ef4444, #f97316)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: '1.25rem',
+                            flexShrink: 0
+                          }}>
+                            {notif.type.includes('comment') ? '💬' : '❤️'}
+                          </div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontWeight: 600, marginBottom: '2px' }}>{notif.title}</div>
+                            <div style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', marginBottom: '2px' }}>{notif.content}</div>
+                            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{formatTime(notif.created_at)}</div>
+                          </div>
+                        </div>
+
+                        {/* Content preview and actions */}
+                        {notifData.momentId && (
+                          <div style={{
+                            marginTop: '0.75rem',
+                            padding: '0.75rem',
+                            background: 'var(--bg-dark)',
+                            borderRadius: '8px',
+                            fontSize: '0.875rem',
+                            color: 'var(--text-secondary)'
+                          }}>
+                            动态内容: {notif.content.split(':').pop()?.trim() || '查看详情'}
+                          </div>
+                        )}
+
+                        {/* Action buttons */}
+                        <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.75rem' }}>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              // Navigate to moment detail
+                              if (notifData.momentId) {
+                                navigate(`/moments?moment=${notifData.momentId}`);
+                              }
+                            }}
+                            style={{
+                              flex: 1,
+                              padding: '0.5rem 0.75rem',
+                              background: 'var(--bg-dark)',
+                              border: 'none',
+                              borderRadius: '8px',
+                              color: 'var(--text-primary)',
+                              fontSize: '0.8125rem',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            📖 查看动态
+                          </button>
+                          <button
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              // Get the user who interacted via getInteractingUserId
+                              const strangerUserId = await getInteractingUserId(notifData);
+                              if (strangerUserId) {
+                                handleStartChat(strangerUserId);
+                              } else {
+                                alert('无法确定互动用户');
+                              }
+                            }}
+                            style={{
+                              flex: 1,
+                              padding: '0.5rem 0.75rem',
+                              background: 'var(--primary)',
+                              border: 'none',
+                              borderRadius: '8px',
+                              color: 'white',
+                              fontSize: '0.8125rem',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            💬 私聊
+                          </button>
+                        </div>
                       </div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontWeight: 600, marginBottom: '2px' }}>{notif.title}</div>
-                        <div style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', marginBottom: '2px' }}>{notif.content}</div>
-                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{formatTime(notif.created_at)}</div>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
               </div>
             )}
           </div>

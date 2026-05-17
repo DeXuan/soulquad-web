@@ -5,6 +5,9 @@ import { Server } from 'socket.io';
 import crypto from 'crypto';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import dotenv from 'dotenv';
+dotenv.config();
+
 import { initDb, query } from './db/database.js';
 import { authRoutes } from './routes/auth.js';
 import { userRoutes } from './routes/users.js';
@@ -13,6 +16,7 @@ import { messageRoutes } from './routes/messages.js';
 import { aiRoutes } from './routes/ai.js';
 import { notificationRoutes, createNotification } from './routes/notifications.js';
 import { soulTestRoutes } from './routes/soulTest.js';
+import { verifyToken } from './routes/auth.js';
 import { cityRoutes } from './routes/cities.js';
 import { momentRoutes } from './routes/moments.js';
 
@@ -21,14 +25,34 @@ const __dirname = dirname(__filename);
 
 const app = express();
 const httpServer = createServer(app);
+
+// Secure CORS configuration - whitelist allowed origins
+const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'http://localhost:5173,http://localhost:3000').split(',');
 const io = new Server(httpServer, {
   cors: {
-    origin: '*',
-    methods: ['GET', 'POST']
+    origin: (origin, callback) => {
+      // Allow requests with no origin (mobile apps, etc.) or from allowed list
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
+    methods: ['GET', 'POST'],
+    credentials: true
   }
 });
 
-app.use(cors());
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true
+}));
 app.use(express.json({ limit: '5mb' }));
 
 // Initialize database and start server
@@ -70,20 +94,13 @@ async function start() {
   io.use((socket, next) => {
     const token = socket.handshake.auth.token;
     if (token) {
-      const [data, signature] = token.split('.');
-      if (data && signature) {
-        const expectedSig = crypto.createHmac('sha256', process.env.TOKEN_SECRET || 'soulquad-secret-key-2024-change-in-production')
-          .update(data).digest('hex').slice(0, 16);
-        if (signature === expectedSig) {
-          const payload = JSON.parse(Buffer.from(data, 'base64').toString());
-          if (payload.exp && Date.now() < payload.exp) {
-            socket.userId = payload.id;
-            return next();
-          }
-        }
+      const payload = verifyToken(token);
+      if (payload && payload.exp && Date.now() < payload.exp) {
+        socket.userId = payload.id;
+        return next();
       }
     }
-    next();
+    next(new Error('Authentication error'));
   });
 
   io.on('connection', (socket) => {
@@ -93,7 +110,8 @@ async function start() {
     }
 
     socket.on('join_room', (matchId) => {
-      if (matchId && matchId.length === 36) {
+      // Validate UUID format (36 chars with hyphens)
+      if (matchId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(matchId)) {
         socket.join(matchId);
       }
     });

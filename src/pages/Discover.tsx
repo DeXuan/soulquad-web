@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { api, City } from '../services/api';
 import { useAuth } from '../hooks/useAuth';
 import { User } from '../types';
-import { MBTI_TYPES, QUADRANT_INFO } from '../data/mbti';
+import { MBTI_TYPES, QUADRANT_INFO, calculateSoulCompatibility } from '../data/mbti';
 
 type LocationMode = 'world' | 'city';
 type MatchMode = 'matchmaking' | 'friendship' | 'companion';
@@ -296,7 +296,7 @@ export function Discover() {
               </p>
               <p style={{ fontSize: '0.875rem' }}>
                 灵魂契合度预估：{user?.mbti && currentUser.mbti ?
-                  Math.round((4 - Math.abs(user.mbti.localeCompare(currentUser.mbti, 'en', { sensitivity: 'base' })) / 2) * 25) : 60}%
+                  calculateSoulCompatibility(user.mbti, currentUser.mbti) : 60}%
               </p>
             </div>
           </div>

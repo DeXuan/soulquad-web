@@ -4,10 +4,22 @@ import { query, get, all } from '../db/database.js';
 
 export const authRoutes = Router();
 
-const TOKEN_SECRET = process.env.TOKEN_SECRET || 'soulquad-secret-key-2024-change-in-production';
+const TOKEN_SECRET = process.env.TOKEN_SECRET || 'dev-only-secret-do-not-use-in-production';
 const TOKEN_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
-function simpleHash(password) {
+// Per-user salt for password hashing (stored in DB per user)
+function generateSalt() {
+  return crypto.randomBytes(32).toString('hex');
+}
+
+function simpleHash(password, salt) {
+  // Use TOKEN_SECRET as pepper + provided salt for additional security
+  const pepper = (TOKEN_SECRET || 'default-pepper').substring(0, 16);
+  return crypto.pbkdf2Sync(password, salt + pepper, 100000, 64, 'sha512').toString('hex');
+}
+
+function hashWithLegacySalt(password) {
+  // Legacy hash for existing users (backward compatibility)
   const salt = 'soulquad-salt-2024';
   return crypto.pbkdf2Sync(password, salt, 100000, 64, 'sha512').toString('hex');
 }
@@ -40,6 +52,24 @@ export function verifyToken(token) {
   }
 }
 
+// Auth middleware - validates token and extracts user ID
+export function authMiddleware(req, res, next) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  const token = authHeader.split(' ')[1];
+  const payload = verifyToken(token);
+
+  if (!payload) {
+    return res.status(401).json({ error: 'Invalid or expired token' });
+  }
+
+  req.userId = payload.id;
+  next();
+}
+
 authRoutes.post('/register', async (req, res) => {
   const { username, password, nickname } = req.body;
 
@@ -55,6 +85,12 @@ authRoutes.post('/register', async (req, res) => {
     return res.status(400).json({ error: 'Password must be at least 6 characters' });
   }
 
+  // Simple password check (basic common passwords)
+  const commonPasswords = ['123456', 'password', 'qwerty', 'abc123', '111111', '12345678'];
+  if (commonPasswords.includes(password.toLowerCase())) {
+    return res.status(400).json({ error: 'Password too simple, please use a stronger password' });
+  }
+
   if (nickname.length < 1 || nickname.length > 50) {
     return res.status(400).json({ error: 'Nickname must be 1-50 characters' });
   }
@@ -66,16 +102,18 @@ authRoutes.post('/register', async (req, res) => {
     }
 
     const id = crypto.randomUUID();
-    const passwordHash = simpleHash(password);
+    const salt = generateSalt();
+    const passwordHash = simpleHash(password, salt);
     const token = generateToken({ id, username });
 
     await query(
-      'INSERT INTO users (id, username, password_hash, nickname, created_at) VALUES ($1, $2, $3, $4, $5)',
-      [id, username, passwordHash, nickname, new Date().toISOString()]
+      'INSERT INTO users (id, username, password_hash, nickname, password_salt, created_at) VALUES ($1, $2, $3, $4, $5, $6)',
+      [id, username, passwordHash, nickname, salt, new Date().toISOString()]
     );
 
     const user = await get('SELECT * FROM users WHERE id = $1', [id]);
     delete user.password_hash;
+    delete user.password_salt;
 
     res.json({ token, user });
   } catch (err) {
@@ -98,13 +136,43 @@ authRoutes.post('/login', async (req, res) => {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
-    const passwordHash = simpleHash(password);
-    if (user.password_hash !== passwordHash) {
+    let validPassword = false;
+
+    // Check password with user's salt (new format)
+    if (user.password_salt) {
+      const passwordHash = simpleHash(password, user.password_salt);
+      if (user.password_hash === passwordHash) {
+        validPassword = true;
+      } else {
+        // Try legacy hash for backward compatibility
+        const legacyHash = hashWithLegacySalt(password);
+        if (user.password_hash === legacyHash) {
+          // Upgrade to new hash on successful legacy login
+          const newSalt = generateSalt();
+          const newHash = simpleHash(password, newSalt);
+          await query('UPDATE users SET password_hash = $1, password_salt = $2 WHERE id = $3', [newHash, newSalt, user.id]);
+          validPassword = true;
+        }
+      }
+    } else {
+      // Old user without salt - use legacy hash only
+      const legacyHash = hashWithLegacySalt(password);
+      if (user.password_hash === legacyHash) {
+        // Add salt for future logins
+        const newSalt = generateSalt();
+        const newHash = simpleHash(password, newSalt);
+        await query('UPDATE users SET password_hash = $1, password_salt = $2 WHERE id = $3', [newHash, newSalt, user.id]);
+        validPassword = true;
+      }
+    }
+
+    if (!validPassword) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
     const token = generateToken(user);
     delete user.password_hash;
+    delete user.password_salt;
 
     res.json({ token, user });
   } catch (err) {
@@ -139,4 +207,9 @@ authRoutes.get('/me', async (req, res) => {
     console.error('Me error:', err);
     res.status(500).json({ error: 'Failed to get user' });
   }
+});
+
+authRoutes.post('/logout', async (req, res) => {
+  // Client handles token removal, server just acknowledges
+  res.json({ success: true, message: 'Logged out' });
 });
