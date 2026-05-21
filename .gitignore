@@ -31,3 +31,12 @@ npm-debug.log*
 # Deploy
 deploy/ssl/
 deploy/.env.production
+
+# Large files - don't commit
+release/
+release-electron/
+release-electron2/
+dist-server/
+exports/
+soulquad-deploy.tar.gz
+*.db

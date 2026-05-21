@@ -314,6 +314,18 @@ CSS 变量定义在 `src/index.css` 中。
 
 ## 数据库
 
+### 生产环境配置
+
+使用远程 PostgreSQL 数据库：
+
+```
+PG_HOST=47.116.77.67
+PG_PORT=5432
+PG_DATABASE=soulquad
+PG_USER=soulquad_user
+PG_PASSWORD=SoulQuad2024!
+```
+
 ### 表结构
 
 - **users** - 用户信息（包含 height, education, occupation, annual_income 等扩展字段）
