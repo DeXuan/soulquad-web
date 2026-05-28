@@ -2,7 +2,7 @@
 
 一款基于 MBTI 性格测试的智能择偶匹配系统，帮助用户找到灵魂契合的伴侣。
 
-![Version](https://img.shields.io/badge/version-1.2.0-blue)
+![Version](https://img.shields.io/badge/version-1.3.0-blue)
 ![React](https://img.shields.io/badge/React-19-61dafb)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178c6)
 ![Node.js](https://img.shields.io/badge/Node.js-20-339933)
@@ -143,7 +143,8 @@ SoulQuad（灵魂象限）是一款创新的社交匹配应用，通过 MBTI 性
 | Express | 5 | Web 框架 |
 | Socket.IO | 4 | 实时通信 |
 | PostgreSQL | 16 | 生产数据库 |
-| JWT | - | 身份认证 |
+| Helmet | - | 安全响应头 |
+| express-rate-limit | - | API 限流 |
 | Anthropic SDK | - | AI 功能 |
 
 **API 模块：**
@@ -214,12 +215,16 @@ user_blocklist (黑名单表)
 
 ### 安全特性
 
-- **JWT Token 认证** - 所有 API 使用 Bearer Token 验证
+- **HMAC Token 认证** - 自定义 Token 签名，完整 256-bit HMAC
 - **Per-user Salt** - 每个用户独立的密码盐值
 - **PBKDF2 加密** - 100000 次迭代，SHA-512 哈希
-- **CORS 白名单** - 禁止 `origin: '*'`，必须配置允许域名
-- **authMiddleware** - 保护所有需要认证的 API
-- **输入校验** - UUID 格式、参数长度、类型验证
+- **CORS 白名单** - 严格 Origin 校验，禁止无 Origin 请求
+- **Helmet 安全头** - X-Frame-Options, X-Content-Type-Options, HSTS 等
+- **Rate Limiting** - 登录/注册/消息/点赞/AI 接口分级限流
+- **Socket 安全** - 房间加入校验 match 成员，消息发送校验参与权限
+- **输入校验** - UUID 格式、参数长度、类型验证、消息长度限制
+- **环境变量校验** - 启动时强制检查 PG_PASSWORD、TOKEN_SECRET、PG_HOST
+- **密码盐值隔离** - API 响应中移除 password_hash 和 password_salt
 
 ---
 
@@ -458,7 +463,49 @@ A: 在发布动态时，勾选"匿名发布"选项，系统会自动生成随机
 
 ---
 
+## 安全审计
+
+### 已修复问题
+
+| 严重程度 | 问题 | 修复措施 |
+|----------|------|----------|
+| CRITICAL | .env 生产凭据提交到 git | 需手动轮换 PG_PASSWORD 和 TOKEN_SECRET |
+| HIGH | TOKEN_SECRET 弱默认值 | 启动时强制校验，缺失则拒绝启动 |
+| HIGH | CORS 允许无 Origin 请求 | 移除 !origin 通配，严格白名单 |
+| HIGH | 缺少安全响应头 | 添加 Helmet 中间件 |
+| HIGH | 消息/点赞/AI 接口无限流 | 分级 Rate Limiting |
+| HIGH | Socket 无 match 成员校验 | join_room/send_message 验证参与权限 |
+| MEDIUM | password_salt 泄露到客户端 | 所有 API 响应中移除敏感字段 |
+| MEDIUM | 消息内容长度无限制 | REST/Socket 均限制 5000 字符 |
+| MEDIUM | message_type 未校验 | 白名单验证 text/image/audio |
+| MEDIUM | 动态分页无上限 | limit 上限 100 |
+| MEDIUM | video_url 无验证 | 校验 URL 格式和长度 |
+| MEDIUM | 用户名枚举 | 注册失败返回通用错误信息 |
+| LOW | 潜在 N+1 查询 | 动态评论批量查询 |
+| LOW | 匹配过滤全表加载 | 迁移到 SQL 条件过滤 |
+
+### 待修复问题
+
+| 严重程度 | 问题 | 建议 |
+|----------|------|------|
+| MEDIUM | Token 存储在 localStorage | 迁移到 httpOnly Cookie |
+| MEDIUM | 数据库连接无 SSL | 配置 PostgreSQL SSL |
+| MEDIUM | 无服务端 Token 吊销 | 实现 Redis Token 黑名单 |
+| LOW | Token 有效期 7 天 | 缩短至 1-2 小时 + Refresh Token |
+| LOW | 遗留密码哈希兼容 | 一次性迁移脚本升级 |
+
+---
+
 ## 更新日志
+
+### v1.3.0 (2026-05-28)
+- 安全加固：Helmet 安全头、CORS 严格白名单、分级 Rate Limiting
+- Socket 安全：join_room/send_message 校验 match 成员权限
+- 输入验证：消息长度限制、message_type 白名单、video_url 格式校验
+- 分页安全：动态列表 limit 上限 100
+- 前端重构：移除 MOCK_MODE 死代码、API_BASE 环境变量配置
+- 聊天 UI：微信风格布局、消息时间策略、头像显示优化
+- Bug 修复：Moments 分页 stale closure、Chat 音频录制 race condition、Discover 双重加载
 
 ### v1.2.0 (2026-05-17)
 - 配置远程 PostgreSQL 数据库

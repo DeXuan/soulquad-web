@@ -100,7 +100,7 @@ authRoutes.post('/register', async (req, res) => {
   try {
     const existing = await get('SELECT id FROM users WHERE username = $1', [username]);
     if (existing) {
-      return res.status(400).json({ error: 'Username already exists' });
+      return res.status(400).json({ error: 'Registration failed' });
     }
 
     const id = crypto.randomUUID();
@@ -113,7 +113,7 @@ authRoutes.post('/register', async (req, res) => {
       [id, username, passwordHash, nickname, salt, new Date().toISOString()]
     );
 
-    const user = await get('SELECT * FROM users WHERE id = $1', [id]);
+    const user = await get('SELECT id, username, nickname, age, gender, avatar_url, avatar_data, bio, mbti, soul_quadrant, soul_score, user_tier, is_verified, profile_completed, ai_description, city, height, education, occupation, annual_income, has_house, has_car, purpose, mode, created_at FROM users WHERE id = $1', [id]);
     delete user.password_hash;
     delete user.password_salt;
 
@@ -185,7 +185,7 @@ authRoutes.post('/login', async (req, res) => {
 
 authRoutes.get('/me', authMiddleware, async (req, res) => {
   try {
-    const user = await get('SELECT * FROM users WHERE id = $1', [req.userId]);
+    const user = await get('SELECT id, username, nickname, age, gender, avatar_url, avatar_data, bio, mbti, soul_quadrant, soul_score, user_tier, is_verified, profile_completed, ai_description, city, height, education, occupation, annual_income, has_house, has_car, purpose, mode, created_at FROM users WHERE id = $1', [req.userId]);
 
     if (!user) {
       return res.status(401).json({ error: 'User not found' });

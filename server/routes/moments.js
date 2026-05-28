@@ -48,7 +48,7 @@ momentRoutes.get('/', async (req, res) => {
   }
 
   const page = parseInt(req.query.page) || 1;
-  const limit = parseInt(req.query.limit) || 20;
+  const limit = Math.min(parseInt(req.query.limit) || 20, 100);
   const offset = (page - 1) * limit;
 
   try {
@@ -136,6 +136,10 @@ momentRoutes.post('/', async (req, res) => {
   const { content, images, video_url, location, is_anonymous } = req.body;
   if (!content && !images && !video_url) {
     return res.status(400).json({ error: 'Content, images or video required' });
+  }
+
+  if (video_url && (video_url.length > 2000 || !/^https?:\/\//.test(video_url))) {
+    return res.status(400).json({ error: 'Invalid video URL' });
   }
 
   if (content && content.length > 2000) {

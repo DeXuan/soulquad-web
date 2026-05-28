@@ -54,6 +54,9 @@ messageRoutes.post('/:matchId', async (req, res) => {
   if (!content || !content.trim()) {
     return res.status(400).json({ error: 'Content is required' });
   }
+  if (content.length > 5000) {
+    return res.status(400).json({ error: 'Message too long (max 5000 chars)' });
+  }
 
   try {
     const match = await get('SELECT * FROM matches WHERE id = $1', [matchId]);

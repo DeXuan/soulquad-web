@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
@@ -18,7 +19,7 @@ for (const envVar of requiredEnvVars) {
   }
 }
 
-import { initDb, query } from './db/database.js';
+import { initDb, query, get } from './db/database.js';
 import { authRoutes } from './routes/auth.js';
 import { userRoutes } from './routes/users.js';
 import { matchRoutes } from './routes/matches.js';
@@ -36,12 +37,17 @@ const __dirname = dirname(__filename);
 const app = express();
 const httpServer = createServer(app);
 
+// Security headers
+app.use(helmet({
+  contentSecurityPolicy: false, // SPA needs inline scripts from Vite
+  crossOriginEmbedderPolicy: false,
+}));
+
 // Secure CORS configuration - whitelist allowed origins
 const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'http://localhost:5173,http://localhost:3000').split(',');
 const io = new Server(httpServer, {
   cors: {
     origin: (origin, callback) => {
-      // Allow requests with no origin (mobile apps, etc.) or from allowed list
       if (!origin || allowedOrigins.includes(origin)) {
         callback(null, true);
       } else {
@@ -55,11 +61,7 @@ const io = new Server(httpServer, {
 
 app.use(cors({
   origin: (origin, callback) => {
-    // Only allow requests from known origins (reject null/undefined origin for non-browser clients)
     if (origin && allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else if (!origin) {
-      // Allow server-to-server requests with no origin (e.g., health checks, mobile apps)
       callback(null, true);
     } else {
       callback(new Error('Not allowed by CORS'));
@@ -67,18 +69,47 @@ app.use(cors({
   },
   credentials: true
 }));
-app.use(express.json({ limit: '5mb' }));
+app.use(express.json({ limit: '100kb' }));
 
-// Rate limiting for auth endpoints (brute-force protection)
+// Rate limiting
 const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 20, // limit each IP to 20 auth requests per window
+  windowMs: 15 * 60 * 1000,
+  max: 20,
   message: { error: 'Too many auth attempts, please try again later' },
   standardHeaders: true,
   legacyHeaders: false,
 });
 app.use('/api/auth/login', authLimiter);
 app.use('/api/auth/register', authLimiter);
+
+const messageLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 30,
+  message: { error: 'Too many messages, slow down' },
+});
+app.use('/api/messages', messageLimiter);
+
+const likeLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 60,
+  message: { error: 'Too many requests, slow down' },
+});
+app.use('/api/matches/like', likeLimiter);
+app.use('/api/matches/pass', likeLimiter);
+
+const aiLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 10,
+  message: { error: 'AI request limit reached, try again later' },
+});
+app.use('/api/ai', aiLimiter);
+
+const momentLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 20,
+  message: { error: 'Too many posts, slow down' },
+});
+app.use('/api/moments', momentLimiter);
 
 // Initialize database and start server
 async function start() {
@@ -163,6 +194,9 @@ async function start() {
         return;
       }
 
+      const allowedTypes = ['text', 'image', 'audio'];
+      const safeType = allowedTypes.includes(message_type) ? message_type : 'text';
+
       try {
         // Verify user is a participant in this match
         const match = await get(
@@ -180,14 +214,14 @@ async function start() {
         await query(`
           INSERT INTO messages (id, match_id, sender_id, content, message_type, created_at)
           VALUES ($1, $2, $3, $4, $5, $6)
-        `, [id, match_id, socket.userId, content, message_type || 'text', now]);
+        `, [id, match_id, socket.userId, content, safeType, now]);
 
         const message = {
           id,
           match_id,
           sender_id: socket.userId,
           content,
-          message_type: message_type || 'text',
+          message_type: safeType,
           created_at: now,
           read_at: null
         };
