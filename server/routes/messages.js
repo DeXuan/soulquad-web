@@ -122,6 +122,15 @@ messageRoutes.post('/:matchId/read', async (req, res) => {
   }
 
   try {
+    // Verify user is a participant in this match
+    const match = await get(
+      'SELECT id FROM matches WHERE id = $1 AND (oder_a_id = $2 OR oder_b_id = $2)',
+      [matchId, userId]
+    );
+    if (!match) {
+      return res.status(403).json({ error: 'Not authorized for this conversation' });
+    }
+
     const now = new Date().toISOString();
     await query(`
       UPDATE messages

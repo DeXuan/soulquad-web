@@ -32,7 +32,7 @@ soulTestRoutes.post('/', async (req, res) => {
 
     const user = await get('SELECT * FROM users WHERE id = $1', [userId]);
 
-    const { password_hash, ...safeUser } = user;
+    const { password_hash, password_salt, ...safeUser } = user;
     res.json(safeUser);
   } catch (err) {
     console.error('Soul test error:', err);

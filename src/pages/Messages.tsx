@@ -26,18 +26,22 @@ export function Messages() {
       const matchList = await api.getMatches();
       setMatches(matchList);
 
-      // Load matched users for chat list
-      const userMap: Record<string, User> = {};
-      for (const match of matchList) {
-        if (match.mutual_liked) {
+      // Load matched users for chat list (parallel)
+      const mutualMatches = matchList.filter(m => m.mutual_liked);
+      const userEntries = await Promise.all(
+        mutualMatches.map(async (match) => {
           const otherUserId = match.oder_a_id === user?.id ? match.oder_b_id : match.oder_a_id;
           try {
             const otherUser = await api.getUser(otherUserId);
-            userMap[match.id] = otherUser;
+            return [match.id, otherUser] as const;
           } catch {
-            // ignore
+            return null;
           }
-        }
+        })
+      );
+      const userMap: Record<string, User> = {};
+      for (const entry of userEntries) {
+        if (entry) userMap[entry[0]] = entry[1];
       }
       setMatchUsers(userMap);
 
@@ -52,8 +56,8 @@ export function Messages() {
   };
 
   const matchedList = matches.filter(m => m.mutual_liked);
-  const unreadMatchCount = notifications.filter(n => !n.read && n.type === 'like').length;
-  const unreadSystemCount = notifications.filter(n => !n.read && n.type === 'system').length;
+  const unreadMatchCount = notifications.filter(n => !n.is_read && n.type === 'like').length;
+  const unreadSystemCount = notifications.filter(n => !n.is_read && n.type === 'system').length;
 
   const formatTime = (timeStr: string) => {
     const date = new Date(timeStr);
@@ -230,13 +234,16 @@ export function Messages() {
                           width: '50px',
                           height: '50px',
                           fontSize: '1.25rem',
-                          background: matchUser.soul_quadrant === 'explorer' ? 'linear-gradient(135deg, #f59e0b, #f97316)' :
-                                      matchUser.soul_quadrant === 'builder' ? 'linear-gradient(135deg, #22c55e, #16a34a)' :
-                                      matchUser.soul_quadrant === 'artist' ? 'linear-gradient(135deg, #ec4899, #d946ef)' :
-                                      'linear-gradient(135deg, #6366f1, #8b5cf6)'
+                          background: matchUser.avatar_data
+                            ? `url(${matchUser.avatar_data}) center/cover`
+                            : matchUser.soul_quadrant === 'explorer' ? 'linear-gradient(135deg, #f59e0b, #f97316)' :
+                              matchUser.soul_quadrant === 'builder' ? 'linear-gradient(135deg, #22c55e, #16a34a)' :
+                              matchUser.soul_quadrant === 'artist' ? 'linear-gradient(135deg, #ec4899, #d946ef)' :
+                              'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                          color: matchUser.avatar_data ? 'transparent' : 'white'
                         }}
                       >
-                        {matchUser.nickname[0]}
+                        {matchUser.avatar_data ? '' : matchUser.nickname[0]}
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -289,9 +296,9 @@ export function Messages() {
                   .map(notif => (
                     <div
                       key={notif.id}
-                      style={{ display: 'flex', gap: '12px', padding: '14px 16px', background: notif.read ? 'var(--bg-card)' : 'var(--bg-hover)', borderRadius: '12px', marginBottom: '12px' }}
+                      style={{ display: 'flex', gap: '12px', padding: '14px 16px', background: notif.is_read ? 'var(--bg-card)' : 'var(--bg-hover)', borderRadius: '12px', marginBottom: '12px' }}
                       onClick={async () => {
-                        if (!notif.read) {
+                        if (!notif.is_read) {
                           await api.markNotificationRead(notif.id);
                           loadData();
                         }
@@ -340,13 +347,13 @@ export function Messages() {
                           display: 'flex',
                           gap: '12px',
                           padding: '14px 16px',
-                          background: notif.read ? 'var(--bg-card)' : 'var(--bg-hover)',
+                          background: notif.is_read ? 'var(--bg-card)' : 'var(--bg-hover)',
                           borderRadius: '12px',
                           marginBottom: '12px',
                           flexDirection: 'column'
                         }}
                         onClick={async () => {
-                          if (!notif.read) {
+                          if (!notif.is_read) {
                             await api.markNotificationRead(notif.id);
                             loadData();
                           }

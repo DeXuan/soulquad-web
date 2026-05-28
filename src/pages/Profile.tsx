@@ -25,6 +25,9 @@ export function Profile() {
   const [generatingAI, setGeneratingAI] = useState(false);
   const [soulDesc, setSoulDesc] = useState<SoulDescription | null>(null);
 
+  // Logout confirm state
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+
   // Edit mode state
   const [editing, setEditing] = useState(false);
   const [editData, setEditData] = useState<Partial<User>>({});
@@ -113,11 +116,13 @@ export function Profile() {
   };
 
   const handleLogout = () => {
-    if (confirm('确定要退出登录吗？')) {
-      api.logout();
-      logout();
-      navigate('/login');
-    }
+    setShowLogoutConfirm(true);
+  };
+
+  const confirmLogout = () => {
+    setShowLogoutConfirm(false);
+    logout();
+    window.location.href = '/login';
   };
 
   const handleAvatarUpload = (data: string) => {
@@ -618,6 +623,72 @@ export function Profile() {
           >
             ♥ 发送喜欢
           </button>
+        )}
+
+        {/* Logout Confirm Modal */}
+        {showLogoutConfirm && (
+          <div
+            style={{
+              position: 'fixed',
+              top: 0, left: 0, right: 0, bottom: 0,
+              background: 'rgba(0,0,0,0.5)',
+              zIndex: 2000,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}
+            onClick={() => setShowLogoutConfirm(false)}
+          >
+            <div
+              style={{
+                background: 'var(--bg-card)',
+                borderRadius: '16px',
+                padding: '2rem 1.5rem',
+                width: '280px',
+                textAlign: 'center',
+                boxShadow: '0 8px 32px rgba(0,0,0,0.2)'
+              }}
+              onClick={e => e.stopPropagation()}
+            >
+              <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>👋</div>
+              <h3 style={{ fontSize: '1.125rem', fontWeight: 600, marginBottom: '0.5rem' }}>退出登录</h3>
+              <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', marginBottom: '1.5rem' }}>确定要退出当前账号吗？</p>
+              <div style={{ display: 'flex', gap: '0.75rem' }}>
+                <button
+                  onClick={() => setShowLogoutConfirm(false)}
+                  style={{
+                    flex: 1,
+                    padding: '0.75rem',
+                    borderRadius: '10px',
+                    border: '1px solid var(--border)',
+                    background: 'var(--bg-card)',
+                    color: 'var(--text-primary)',
+                    fontSize: '0.9375rem',
+                    fontWeight: 500,
+                    cursor: 'pointer'
+                  }}
+                >
+                  取消
+                </button>
+                <button
+                  onClick={confirmLogout}
+                  style={{
+                    flex: 1,
+                    padding: '0.75rem',
+                    borderRadius: '10px',
+                    border: 'none',
+                    background: '#ef4444',
+                    color: 'white',
+                    fontSize: '0.9375rem',
+                    fontWeight: 500,
+                    cursor: 'pointer'
+                  }}
+                >
+                  确定退出
+                </button>
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </div>

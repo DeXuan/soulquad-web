@@ -1,26 +1,15 @@
 import { Router } from 'express';
 import crypto from 'crypto';
 import { query, get, all } from '../db/database.js';
-import { verifyToken } from './auth.js';
+import { authMiddleware } from './auth.js';
 
 export const userRoutes = Router();
 
-async function getCurrentUser(req) {
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
-
-  const token = authHeader.split(' ')[1];
-  if (!token) return null;
-
-  const payload = verifyToken(token);
-  if (!payload) return null;
-
-  return await get('SELECT * FROM users WHERE id = $1', [payload.id]);
-}
+userRoutes.use(authMiddleware);
 
 function sanitizeUser(user) {
   if (!user) return null;
-  const { password_hash, ...rest } = user;
+  const { password_hash, password_salt, ...rest } = user;
   return rest;
 }
 
@@ -37,16 +26,11 @@ function isValidMode(mode) {
 }
 
 userRoutes.get('/', async (req, res) => {
-  const currentUser = await getCurrentUser(req);
-  if (!currentUser) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-
   try {
     const users = await all(`
       SELECT id, username, nickname, age, gender, avatar_url, avatar_data, bio, mbti, soul_quadrant, soul_score, user_tier, is_verified, profile_completed, ai_description, created_at
       FROM users WHERE id != $1
-    `, [currentUser.id]);
+    `, [req.userId]);
 
     res.json(users);
   } catch (err) {
@@ -56,11 +40,6 @@ userRoutes.get('/', async (req, res) => {
 });
 
 userRoutes.get('/:id', async (req, res) => {
-  const currentUser = await getCurrentUser(req);
-  if (!currentUser) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-
   try {
     const user = await get(`
       SELECT id, username, nickname, age, gender, avatar_url, avatar_data, bio, mbti, soul_quadrant, soul_score, user_tier, is_verified, profile_completed, ai_description, created_at
@@ -79,11 +58,6 @@ userRoutes.get('/:id', async (req, res) => {
 });
 
 userRoutes.put('/profile', async (req, res) => {
-  const currentUser = await getCurrentUser(req);
-  if (!currentUser) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-
   const { nickname, age, gender, bio, avatar_url, avatar_data, city, height, education, occupation, annual_income, has_house, has_car, purpose, mode } = req.body;
 
   if (nickname !== undefined && (nickname.length < 1 || nickname.length > 50)) {
@@ -131,12 +105,12 @@ userRoutes.put('/profile', async (req, res) => {
 
   updates.push(`updated_at = $${paramIndex++}`);
   values.push(new Date().toISOString());
-  values.push(currentUser.id);
+  values.push(req.userId);
 
   try {
     await query(`UPDATE users SET ${updates.join(', ')} WHERE id = $${paramIndex}`, values);
 
-    const user = await get('SELECT * FROM users WHERE id = $1', [currentUser.id]);
+    const user = await get('SELECT * FROM users WHERE id = $1', [req.userId]);
     res.json({ ...sanitizeUser(user), success: true, message: '保存成功' });
   } catch (err) {
     console.error('Update profile error:', err);
@@ -145,11 +119,6 @@ userRoutes.put('/profile', async (req, res) => {
 });
 
 userRoutes.post('/avatar', async (req, res) => {
-  const currentUser = await getCurrentUser(req);
-  if (!currentUser) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-
   const { avatar_data } = req.body;
   if (!avatar_data) {
     return res.status(400).json({ error: 'Avatar data is required' });
@@ -166,7 +135,7 @@ userRoutes.post('/avatar', async (req, res) => {
   }
 
   try {
-    await query('UPDATE users SET avatar_data = $1, updated_at = $2 WHERE id = $3', [avatar_data, new Date().toISOString(), currentUser.id]);
+    await query('UPDATE users SET avatar_data = $1, updated_at = $2 WHERE id = $3', [avatar_data, new Date().toISOString(), req.userId]);
     res.json({ success: true, avatar_data });
   } catch (err) {
     console.error('Update avatar error:', err);
@@ -187,7 +156,7 @@ userRoutes.get('/leaderboard', async (req, res) => {
   limitDate.setDate(limitDate.getDate() - 30);
 
   try {
-    let query = `
+    let sql = `
       SELECT id, nickname, avatar_data, avatar_url, mbti, soul_quadrant, soul_score, user_tier, match_count,
              (SELECT COUNT(*) FROM matches WHERE (oder_a_id = users.id OR oder_b_id = users.id) AND mutual_liked = true) as like_count
       FROM users
@@ -195,14 +164,14 @@ userRoutes.get('/leaderboard', async (req, res) => {
     `;
 
     if (type === 'new') {
-      query += ' AND created_at > $1';
+      sql += ' AND created_at > $1';
     }
 
-    query += ` ORDER BY ${orderBy} LIMIT 50`;
+    sql += ` ORDER BY ${orderBy} LIMIT 50`;
 
     const leaders = type === 'new'
-      ? await all(query, [limitDate.toISOString()])
-      : await all(query);
+      ? await all(sql, [limitDate.toISOString()])
+      : await all(sql);
 
     res.json(leaders);
   } catch (err) {
@@ -232,7 +201,7 @@ userRoutes.get('/tier/leaderboard', async (req, res) => {
   limitDate.setDate(limitDate.getDate() - 30);
 
   try {
-    let query = `
+    let sql = `
       SELECT id, nickname, avatar_data, avatar_url, mbti, soul_quadrant, soul_score, user_tier, match_count,
              (SELECT COUNT(*) FROM matches WHERE (oder_a_id = users.id OR oder_b_id = users.id) AND mutual_liked = true) as like_count
       FROM users
@@ -242,25 +211,25 @@ userRoutes.get('/tier/leaderboard', async (req, res) => {
     const params = [];
 
     if (type === 'new') {
-      query += ' AND created_at > $1';
+      sql += ' AND created_at > $1';
       params.push(limitDate.toISOString());
     }
 
     if (tier !== 'all') {
       const paramIdx = params.length + 1;
-      query += ` AND user_tier = $${paramIdx}`;
+      sql += ` AND user_tier = $${paramIdx}`;
       params.push(tier);
     }
 
     if (city) {
       const paramIdx = params.length + 1;
-      query += ` AND city = $${paramIdx}`;
+      sql += ` AND city = $${paramIdx}`;
       params.push(city);
     }
 
-    query += ` ORDER BY ${orderBy} LIMIT 20`;
+    sql += ` ORDER BY ${orderBy} LIMIT 20`;
 
-    const leaders = await all(query, params);
+    const leaders = await all(sql, params);
 
     res.json(leaders);
   } catch (err) {
@@ -270,11 +239,6 @@ userRoutes.get('/tier/leaderboard', async (req, res) => {
 });
 
 userRoutes.get('/likes', async (req, res) => {
-  const currentUser = await getCurrentUser(req);
-  if (!currentUser) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-
   try {
     const likes = await all(`
       SELECT u.* FROM matches m
@@ -284,7 +248,7 @@ userRoutes.get('/likes', async (req, res) => {
       )
       WHERE ((m.oder_a_id = $1 AND m.user_a_liked = true) OR (m.oder_b_id = $1 AND m.user_b_liked = true))
       AND m.mutual_liked = false
-    `, [currentUser.id]);
+    `, [req.userId]);
 
     res.json(likes.map(sanitizeUser));
   } catch (err) {
@@ -294,11 +258,6 @@ userRoutes.get('/likes', async (req, res) => {
 });
 
 userRoutes.delete('/likes/:userId', async (req, res) => {
-  const currentUser = await getCurrentUser(req);
-  if (!currentUser) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-
   const targetId = req.params.userId;
   if (!targetId || targetId.length < 1) {
     return res.status(400).json({ error: 'Invalid user ID' });
@@ -309,7 +268,7 @@ userRoutes.delete('/likes/:userId', async (req, res) => {
       UPDATE matches
       SET user_a_liked = false, user_b_liked = false
       WHERE (oder_a_id = $1 AND oder_b_id = $2) OR (oder_a_id = $2 AND oder_b_id = $1)
-    `, [currentUser.id, targetId]);
+    `, [req.userId, targetId]);
 
     res.json({ success: true });
   } catch (err) {
@@ -318,32 +277,7 @@ userRoutes.delete('/likes/:userId', async (req, res) => {
   }
 });
 
-// Create blocklist table if not exists (run once)
-async function ensureBlocklistTable() {
-  try {
-    await query(`
-      CREATE TABLE IF NOT EXISTS user_blocklist (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        blocked_user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(user_id, blocked_user_id)
-      )
-    `);
-  } catch (err) {
-    // Table might already exist
-  }
-}
-
-// Initialize blocklist table
-ensureBlocklistTable();
-
 userRoutes.get('/blocklist', async (req, res) => {
-  const currentUser = await getCurrentUser(req);
-  if (!currentUser) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-
   try {
     const blockedUsers = await all(`
       SELECT u.id, u.nickname, u.avatar_url, u.mbti, u.soul_quadrant, u.user_tier
@@ -351,7 +285,7 @@ userRoutes.get('/blocklist', async (req, res) => {
       JOIN users u ON b.blocked_user_id = u.id
       WHERE b.user_id = $1
       ORDER BY b.created_at DESC
-    `, [currentUser.id]);
+    `, [req.userId]);
 
     res.json(blockedUsers);
   } catch (err) {
@@ -361,13 +295,8 @@ userRoutes.get('/blocklist', async (req, res) => {
 });
 
 userRoutes.post('/block/:userId', async (req, res) => {
-  const currentUser = await getCurrentUser(req);
-  if (!currentUser) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-
   const targetId = req.params.userId;
-  if (!targetId || targetId === currentUser.id) {
+  if (!targetId || targetId === req.userId) {
     return res.status(400).json({ error: 'Invalid target user' });
   }
 
@@ -381,7 +310,7 @@ userRoutes.post('/block/:userId', async (req, res) => {
       INSERT INTO user_blocklist (id, user_id, blocked_user_id, created_at)
       VALUES ($1, $2, $3, $4)
       ON CONFLICT (user_id, blocked_user_id) DO NOTHING
-    `, [crypto.randomUUID(), currentUser.id, targetId, new Date().toISOString()]);
+    `, [crypto.randomUUID(), req.userId, targetId, new Date().toISOString()]);
 
     res.json({ success: true, message: 'User blocked' });
   } catch (err) {
@@ -391,11 +320,6 @@ userRoutes.post('/block/:userId', async (req, res) => {
 });
 
 userRoutes.delete('/block/:userId', async (req, res) => {
-  const currentUser = await getCurrentUser(req);
-  if (!currentUser) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-
   const targetId = req.params.userId;
   if (!targetId) {
     return res.status(400).json({ error: 'Invalid target user' });
@@ -405,7 +329,7 @@ userRoutes.delete('/block/:userId', async (req, res) => {
     await query(`
       DELETE FROM user_blocklist
       WHERE user_id = $1 AND blocked_user_id = $2
-    `, [currentUser.id, targetId]);
+    `, [req.userId, targetId]);
 
     res.json({ success: true, message: 'User unblocked' });
   } catch (err) {

@@ -84,18 +84,20 @@ aiRoutes.post('/soul-description', async (req, res) => {
 
       const fullDescription = `【灵魂特质】${result.traits}\n\n【理想伴侣】${result.idealPartner}\n\n【相处建议】${result.advice}`;
 
-      await query('UPDATE users SET ai_description = $1 WHERE id = $2', [fullDescription, userId]);
-
-      res.json({
+      const aiData = JSON.stringify({
         description: fullDescription,
         traits: result.traits,
         idealPartner: result.idealPartner,
         advice: result.advice
       });
+
+      await query('UPDATE users SET ai_description = $1 WHERE id = $2', [aiData, userId]);
+
+      res.json(JSON.parse(aiData));
     } catch (error) {
       console.error('AI API error:', error);
       const mockDescription = generateMockDescription(user, mbtiInfo, quadrantInfo, values, interests);
-      await query('UPDATE users SET ai_description = $1 WHERE id = $2', [mockDescription.description, userId]);
+      await query('UPDATE users SET ai_description = $1 WHERE id = $2', [JSON.stringify(mockDescription), userId]);
       res.json(mockDescription);
     }
   } catch (err) {

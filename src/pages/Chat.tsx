@@ -25,12 +25,13 @@ export function Chat() {
   const [otherUser, setOtherUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
-  const [icebreakers, setIcebreakers] = useState<string[]>([]);
+
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [activeEmojiCategory, setActiveEmojiCategory] = useState(0);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [recording, setRecording] = useState(false);
   const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
-  const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
+  // audioBlob managed via ref for reliable async access
   const socketRef = useRef<Socket | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -96,7 +97,8 @@ export function Chat() {
     const token = localStorage.getItem('soulquad_token');
     if (!token) return;
 
-    const socket = io('/', {
+    const socketUrl = import.meta.env.VITE_SOCKET_URL || window.location.origin;
+    const socket = io(socketUrl, {
       auth: { token }
     });
 
@@ -108,7 +110,11 @@ export function Chat() {
 
     socket.on('new_message', (message: Message) => {
       if (message.match_id === matchId) {
-        setMessages(prev => [...prev, message]);
+        setMessages(prev => {
+          // Deduplicate: skip if message ID already exists
+          if (prev.some(m => m.id === message.id)) return prev;
+          return [...prev, message];
+        });
         if (message.sender_id !== user?.id) {
           api.markMessagesRead(matchId!);
         }
@@ -118,19 +124,6 @@ export function Chat() {
     socketRef.current = socket;
   };
 
-  const loadIcebreakers = async () => {
-    if (!matchId || messages.length > 0) return;
-    try {
-      const data = await api.getIcebreaker(matchId);
-      setIcebreakers(data.topics);
-    } catch {
-      // ignore
-    }
-  };
-
-  useEffect(() => {
-    loadIcebreakers();
-  }, [matchId]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -142,10 +135,14 @@ export function Chat() {
 
     setSending(true);
     try {
-      await api.sendMessage(matchId, newMessage.trim());
+      const sentMessage = await api.sendMessage(matchId, newMessage.trim());
       setNewMessage('');
-      // Don't add to state here - socket 'new_message' event will handle it
-      // This prevents double-message display
+      // Add message to local state immediately for instant feedback
+      // Socket will deduplicate if it also arrives via 'new_message' event
+      setMessages(prev => {
+        if (prev.some(m => m.id === sentMessage.id)) return prev;
+        return [...prev, sentMessage];
+      });
     } catch (err) {
       console.error('Failed to send message:', err);
     } finally {
@@ -199,6 +196,8 @@ export function Chat() {
     }
   };
 
+  const audioBlobRef = useRef<Blob | null>(null);
+
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -209,9 +208,9 @@ export function Chat() {
         chunks.push(e.data);
       };
 
-      recorder.onstop = async () => {
+      recorder.onstop = () => {
         const blob = new Blob(chunks, { type: 'audio/webm' });
-        setAudioBlob(blob);
+        audioBlobRef.current = blob;
         stream.getTracks().forEach(track => track.stop());
       };
 
@@ -227,32 +226,36 @@ export function Chat() {
   const stopRecording = async () => {
     if (!mediaRecorder || !matchId) return;
 
-    mediaRecorder.stop();
-    setRecording(false);
+    // Wait for onstop to fire and produce the blob
+    const blob = await new Promise<Blob | null>((resolve) => {
+      const prevOnStop = mediaRecorder.onstop?.bind(mediaRecorder);
+      mediaRecorder.onstop = function (e) {
+        prevOnStop?.(e);
+        // Use setTimeout to allow state update from prevOnStop
+        setTimeout(() => resolve(audioBlobRef.current), 0);
+      };
+      mediaRecorder.stop();
+      setRecording(false);
+    });
 
-    // Wait a bit for the blob to be ready
-    setTimeout(async () => {
-      if (!audioBlob) return;
+    if (!blob) return;
 
-      setSending(true);
-      try {
-        // Convert audio to base64
-        const reader = new FileReader();
-        const audioData = await new Promise<string>((resolve, reject) => {
-          reader.onload = () => resolve(reader.result as string);
-          reader.onerror = reject;
-          reader.readAsDataURL(audioBlob);
-        });
+    setSending(true);
+    try {
+      const reader = new FileReader();
+      const audioData = await new Promise<string>((resolve, reject) => {
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
 
-        await api.sendAudioMessage(matchId, audioData);
-        // Don't add to state - socket 'new_message' event handles it
-      } catch (err) {
-        console.error('Failed to send audio:', err);
-      } finally {
-        setSending(false);
-        setAudioBlob(null);
-      }
-    }, 500);
+      await api.sendAudioMessage(matchId, audioData);
+    } catch (err) {
+      console.error('Failed to send audio:', err);
+    } finally {
+      setSending(false);
+      audioBlobRef.current = null;
+    }
   };
 
   const formatTime = (dateStr: string) => {
@@ -303,6 +306,8 @@ export function Chat() {
   const quadrantInfo = otherUser?.soul_quadrant ?
     QUADRANT_INFO[otherUser.soul_quadrant] : null;
 
+  if (!user) return null;
+
   return (
     <div className="chat-container">
       <div className="chat-header">
@@ -325,13 +330,16 @@ export function Chat() {
             width: '40px',
             height: '40px',
             fontSize: '1rem',
-            background: otherUser?.soul_quadrant === 'explorer' ? 'linear-gradient(135deg, #f59e0b, #f97316)' :
-                        otherUser?.soul_quadrant === 'builder' ? 'linear-gradient(135deg, #22c55e, #16a34a)' :
-                        otherUser?.soul_quadrant === 'artist' ? 'linear-gradient(135deg, #ec4899, #d946ef)' :
-                        'linear-gradient(135deg, #6366f1, #8b5cf6)'
+            background: otherUser?.avatar_data
+              ? `url(${otherUser.avatar_data}) center/cover`
+              : otherUser?.soul_quadrant === 'explorer' ? 'linear-gradient(135deg, #f59e0b, #f97316)' :
+                otherUser?.soul_quadrant === 'builder' ? 'linear-gradient(135deg, #22c55e, #16a34a)' :
+                otherUser?.soul_quadrant === 'artist' ? 'linear-gradient(135deg, #ec4899, #d946ef)' :
+                'linear-gradient(135deg, #6366f1, #8b5cf6)',
+            color: otherUser?.avatar_data ? 'transparent' : 'white'
           }}
         >
-          {otherUser?.nickname[0]}
+          {otherUser?.avatar_data ? '' : otherUser?.nickname[0]}
         </div>
         <div style={{ flex: 1 }}>
           <div style={{ fontWeight: 600 }}>{otherUser?.nickname}</div>
@@ -360,30 +368,7 @@ export function Chat() {
           </div>
         ) : (
           <>
-            {/* Icebreaker Suggestions */}
-            {icebreakers.length > 0 && messages.length < 3 && (
-              <div style={{ padding: '0.75rem 1rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'center' }}>
-                {icebreakers.map((topic, i) => (
-                  <button
-                    key={i}
-                    onClick={() => {
-                      setNewMessage(topic);
-                    }}
-                    style={{
-                      background: 'var(--bg-glass)',
-                      border: '1px solid var(--border)',
-                      borderRadius: '1rem',
-                      padding: '0.375rem 0.875rem',
-                      fontSize: '0.8125rem',
-                      color: 'var(--text-primary)',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    {topic}
-                  </button>
-                ))}
-              </div>
-            )}
+
 
             <div style={{ textAlign: 'center', padding: '0.5rem' }}>
               <span style={{
@@ -398,8 +383,17 @@ export function Chat() {
             </div>
             {messages.map((message, index) => {
               const isSent = message.sender_id === user?.id;
-              const showDate = index === 0 ||
-                formatDate(messages[index - 1].created_at) !== formatDate(message.created_at);
+              const prev = index > 0 ? messages[index - 1] : null;
+
+              // Show date separator when day changes
+              const showDate = !prev ||
+                formatDate(prev.created_at) !== formatDate(message.created_at);
+
+              // Show time label when gap > 5 minutes or day changes (WeChat style)
+              const timeDiff = prev
+                ? (new Date(message.created_at).getTime() - new Date(prev.created_at).getTime()) / 60000
+                : Infinity;
+              const showTime = timeDiff > 5;
 
               return (
                 <div key={message.id}>
@@ -416,25 +410,67 @@ export function Chat() {
                       </span>
                     </div>
                   )}
-                  <div className={`message-row ${isSent ? 'sent' : 'received'}`}>
+                  {showTime && !showDate && (
+                    <div style={{ textAlign: 'center', padding: '0.25rem 0' }}>
+                      <span style={{
+                        fontSize: '0.6875rem',
+                        color: 'var(--text-muted)'
+                      }}>
+                        {formatTime(message.created_at)}
+                      </span>
+                    </div>
+                  )}
+                  <div
+                    className={`message-row ${isSent ? 'sent' : 'received'}`}
+                    style={{
+                      display: 'flex',
+                      flexDirection: isSent ? 'row-reverse' : 'row',
+                      alignItems: 'flex-start',
+                      gap: '8px',
+                      margin: '4px 12px',
+                      width: '100%',
+                      boxSizing: 'border-box'
+                    }}
+                  >
                     {!isSent && (
                       <div
                         className="chat-avatar"
                         style={{
-                          background: otherUser?.soul_quadrant === 'explorer' ? 'linear-gradient(135deg, #f59e0b, #f97316)' :
-                                      otherUser?.soul_quadrant === 'builder' ? 'linear-gradient(135deg, #22c55e, #16a34a)' :
-                                      otherUser?.soul_quadrant === 'artist' ? 'linear-gradient(135deg, #ec4899, #d946ef)' :
-                                      'linear-gradient(135deg, #6366f1, #8b5cf6)'
+                          width: '40px',
+                          height: '40px',
+                          borderRadius: '6px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: '0.875rem',
+                          fontWeight: 600,
+                          flexShrink: 0,
+                          background: otherUser?.avatar_data
+                            ? `url(${otherUser.avatar_data}) center/cover`
+                            : otherUser?.soul_quadrant === 'explorer' ? 'linear-gradient(135deg, #f59e0b, #f97316)' :
+                              otherUser?.soul_quadrant === 'builder' ? 'linear-gradient(135deg, #22c55e, #16a34a)' :
+                              otherUser?.soul_quadrant === 'artist' ? 'linear-gradient(135deg, #ec4899, #d946ef)' :
+                              'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                          color: otherUser?.avatar_data ? 'transparent' : 'white'
                         }}
                       >
-                        {otherUser?.avatar_url ? (
-                          <img src={otherUser.avatar_url} alt="" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
-                        ) : otherUser?.nickname[0]}
+                        {otherUser?.avatar_data ? '' : otherUser?.nickname[0]}
                       </div>
                     )}
-                    <div className="message-bubble">
+                    <div
+                      className="message-bubble"
+                      style={{
+                        maxWidth: '65%',
+                        padding: '9px 13px',
+                        borderRadius: '6px',
+                        fontSize: '0.9375rem',
+                        lineHeight: 1.45,
+                        wordBreak: 'break-word',
+                        background: isSent ? '#95ec69' : '#fff',
+                        color: '#000'
+                      }}
+                    >
                       {renderMessageContent(message)}
-                      <div className="message-time">{formatTime(message.created_at)}</div>
                     </div>
                   </div>
                 </div>
@@ -466,10 +502,10 @@ export function Chat() {
             {EMOJI_CATEGORIES.map((cat, i) => (
               <button
                 key={i}
-                onClick={() => {}}
+                onClick={() => setActiveEmojiCategory(i)}
                 style={{
                   padding: '4px 8px',
-                  background: i === 0 ? 'var(--primary)' : 'transparent',
+                  background: i === activeEmojiCategory ? 'var(--primary)' : 'transparent',
                   border: 'none',
                   borderRadius: '6px',
                   color: 'var(--text-primary)',
@@ -483,7 +519,7 @@ export function Chat() {
             ))}
           </div>
           <div style={{ padding: '8px', overflowY: 'auto', maxHeight: '200px' }}>
-            {EMOJI_CATEGORIES[0].emojis.map((emoji, i) => (
+            {EMOJI_CATEGORIES[activeEmojiCategory].emojis.map((emoji, i) => (
               <button
                 key={i}
                 onClick={() => handleEmojiSelect(emoji)}

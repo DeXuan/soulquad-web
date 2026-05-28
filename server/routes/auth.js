@@ -1,10 +1,12 @@
 import { Router } from 'express';
 import crypto from 'crypto';
-import { query, get, all } from '../db/database.js';
+import { query, get } from '../db/database.js';
 
 export const authRoutes = Router();
 
-const TOKEN_SECRET = process.env.TOKEN_SECRET || 'dev-only-secret-do-not-use-in-production';
+function getTokenSecret() {
+  return process.env.TOKEN_SECRET;
+}
 const TOKEN_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 // Per-user salt for password hashing (stored in DB per user)
@@ -14,7 +16,7 @@ function generateSalt() {
 
 function simpleHash(password, salt) {
   // Use TOKEN_SECRET as pepper + provided salt for additional security
-  const pepper = (TOKEN_SECRET || 'default-pepper').substring(0, 16);
+  const pepper = getTokenSecret().substring(0, 16);
   return crypto.pbkdf2Sync(password, salt + pepper, 100000, 64, 'sha512').toString('hex');
 }
 
@@ -32,7 +34,7 @@ function generateToken(user) {
     exp: Date.now() + TOKEN_EXPIRY_MS
   });
   const data = Buffer.from(payload).toString('base64');
-  const signature = crypto.createHmac('sha256', TOKEN_SECRET).update(data).digest('hex').slice(0, 16);
+  const signature = crypto.createHmac('sha256', getTokenSecret()).update(data).digest('hex');
   return `${data}.${signature}`;
 }
 
@@ -40,7 +42,7 @@ export function verifyToken(token) {
   try {
     const [data, signature] = token.split('.');
     if (!data || !signature) return null;
-    const expectedSig = crypto.createHmac('sha256', TOKEN_SECRET).update(data).digest('hex').slice(0, 16);
+    const expectedSig = crypto.createHmac('sha256', getTokenSecret()).update(data).digest('hex');
     if (signature !== expectedSig) return null;
     const payload = JSON.parse(Buffer.from(data, 'base64').toString());
     if (payload.exp && Date.now() > payload.exp) {
@@ -181,27 +183,16 @@ authRoutes.post('/login', async (req, res) => {
   }
 });
 
-authRoutes.get('/me', async (req, res) => {
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-
-  const token = authHeader.split(' ')[1];
-  const payload = verifyToken(token);
-
-  if (!payload) {
-    return res.status(401).json({ error: 'Invalid or expired token' });
-  }
-
+authRoutes.get('/me', authMiddleware, async (req, res) => {
   try {
-    const user = await get('SELECT * FROM users WHERE id = $1', [payload.id]);
+    const user = await get('SELECT * FROM users WHERE id = $1', [req.userId]);
 
     if (!user) {
       return res.status(401).json({ error: 'User not found' });
     }
 
     delete user.password_hash;
+    delete user.password_salt;
     res.json(user);
   } catch (err) {
     console.error('Me error:', err);

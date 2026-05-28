@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import rateLimit from 'express-rate-limit';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import crypto from 'crypto';
@@ -7,6 +8,15 @@ import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import dotenv from 'dotenv';
 dotenv.config();
+
+// Validate required environment variables
+const requiredEnvVars = ['PG_PASSWORD', 'TOKEN_SECRET', 'PG_HOST'];
+for (const envVar of requiredEnvVars) {
+  if (!process.env[envVar]) {
+    console.error(`FATAL: Missing required environment variable: ${envVar}`);
+    process.exit(1);
+  }
+}
 
 import { initDb, query } from './db/database.js';
 import { authRoutes } from './routes/auth.js';
@@ -45,7 +55,11 @@ const io = new Server(httpServer, {
 
 app.use(cors({
   origin: (origin, callback) => {
-    if (!origin || allowedOrigins.includes(origin)) {
+    // Only allow requests from known origins (reject null/undefined origin for non-browser clients)
+    if (origin && allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else if (!origin) {
+      // Allow server-to-server requests with no origin (e.g., health checks, mobile apps)
       callback(null, true);
     } else {
       callback(new Error('Not allowed by CORS'));
@@ -54,6 +68,17 @@ app.use(cors({
   credentials: true
 }));
 app.use(express.json({ limit: '5mb' }));
+
+// Rate limiting for auth endpoints (brute-force protection)
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 20, // limit each IP to 20 auth requests per window
+  message: { error: 'Too many auth attempts, please try again later' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+app.use('/api/auth/login', authLimiter);
+app.use('/api/auth/register', authLimiter);
 
 // Initialize database and start server
 async function start() {
@@ -109,10 +134,22 @@ async function start() {
       global.connectedUsers.set(socket.userId, socket.id);
     }
 
-    socket.on('join_room', (matchId) => {
+    socket.on('join_room', async (matchId) => {
       // Validate UUID format (36 chars with hyphens)
-      if (matchId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(matchId)) {
-        socket.join(matchId);
+      if (!matchId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(matchId)) {
+        return;
+      }
+      // Verify user is a participant in this match
+      try {
+        const match = await get(
+          'SELECT id FROM matches WHERE id = $1 AND (oder_a_id = $2 OR oder_b_id = $2) AND mutual_liked = true',
+          [matchId, socket.userId]
+        );
+        if (match) {
+          socket.join(matchId);
+        }
+      } catch (err) {
+        console.error('join_room error:', err);
       }
     });
 
@@ -126,25 +163,40 @@ async function start() {
         return;
       }
 
-      const id = crypto.randomUUID();
-      const now = new Date().toISOString();
+      try {
+        // Verify user is a participant in this match
+        const match = await get(
+          'SELECT id FROM matches WHERE id = $1 AND (oder_a_id = $2 OR oder_b_id = $2) AND mutual_liked = true',
+          [match_id, socket.userId]
+        );
+        if (!match) {
+          socket.emit('error', { message: 'Not authorized for this conversation' });
+          return;
+        }
 
-      await query(`
-        INSERT INTO messages (id, match_id, sender_id, content, message_type, created_at)
-        VALUES ($1, $2, $3, $4, $5, $6)
-      `, [id, match_id, socket.userId, content, message_type || 'text', now]);
+        const id = crypto.randomUUID();
+        const now = new Date().toISOString();
 
-      const message = {
-        id,
-        match_id,
-        sender_id: socket.userId,
-        content,
-        message_type: message_type || 'text',
-        created_at: now,
-        read_at: null
-      };
+        await query(`
+          INSERT INTO messages (id, match_id, sender_id, content, message_type, created_at)
+          VALUES ($1, $2, $3, $4, $5, $6)
+        `, [id, match_id, socket.userId, content, message_type || 'text', now]);
 
-      socket.to(match_id).emit('new_message', message);
+        const message = {
+          id,
+          match_id,
+          sender_id: socket.userId,
+          content,
+          message_type: message_type || 'text',
+          created_at: now,
+          read_at: null
+        };
+
+        socket.to(match_id).emit('new_message', message);
+      } catch (err) {
+        console.error('send_message error:', err);
+        socket.emit('error', { message: 'Failed to send message' });
+      }
     });
 
     socket.on('disconnect', () => {

@@ -29,11 +29,13 @@ function formatMoment(moment, userId) {
       id: 'anonymous',
       nickname: moment.anonymous_name || '匿名用户',
       avatar_url: '',
+      avatar_data: '',
       user_tier: 'anonymous'
     } : {
       id: moment.user_id,
       nickname: moment.nickname,
       avatar_url: moment.avatar_url,
+      avatar_data: moment.avatar_data || '',
       user_tier: moment.user_tier
     }
   };
@@ -51,7 +53,7 @@ momentRoutes.get('/', async (req, res) => {
 
   try {
     const moments = await all(`
-      SELECT m.*, u.nickname, u.avatar_url, u.user_tier,
+      SELECT m.*, u.nickname, u.avatar_url, u.avatar_data, u.user_tier,
              (SELECT COUNT(*) FROM moment_likes WHERE moment_id = m.id) as like_count,
              (SELECT COUNT(*) FROM moment_comments WHERE moment_id = m.id) as comment_count,
              EXISTS(SELECT 1 FROM moment_likes WHERE moment_id = m.id AND user_id = $1) as is_liked
@@ -61,17 +63,31 @@ momentRoutes.get('/', async (req, res) => {
       LIMIT $2 OFFSET $3
     `, [userId, limit, offset]);
 
-    // Load comments for each moment
-    const momentsWithComments = await Promise.all(moments.map(async (m) => {
-      const comments = await all(`
+    // Batch load comments for all moments (avoids N+1 queries)
+    const momentIds = moments.map(m => m.id);
+    let allComments = [];
+    if (momentIds.length > 0) {
+      allComments = await all(`
         SELECT c.*, u.nickname, u.avatar_url
         FROM moment_comments c
         JOIN users u ON c.user_id = u.id
-        WHERE c.moment_id = $1
+        WHERE c.moment_id = ANY($1)
         ORDER BY c.created_at ASC
-        LIMIT 3
-      `, [m.id]);
-      return { ...formatMoment(m, userId), comments };
+      `, [momentIds]);
+    }
+
+    // Group comments by moment_id, limit to 3 per moment
+    const commentsByMoment = {};
+    for (const c of allComments) {
+      if (!commentsByMoment[c.moment_id]) commentsByMoment[c.moment_id] = [];
+      if (commentsByMoment[c.moment_id].length < 3) {
+        commentsByMoment[c.moment_id].push(c);
+      }
+    }
+
+    const momentsWithComments = moments.map(m => ({
+      ...formatMoment(m, userId),
+      comments: commentsByMoment[m.id] || []
     }));
 
     const countResult = await get('SELECT COUNT(*) as count FROM moments');
@@ -92,7 +108,7 @@ momentRoutes.get('/user/:userId', async (req, res) => {
 
   try {
     const moments = await all(`
-      SELECT m.*, u.nickname, u.avatar_url, u.user_tier,
+      SELECT m.*, u.nickname, u.avatar_url, u.avatar_data, u.user_tier,
              (SELECT COUNT(*) FROM moment_likes WHERE moment_id = m.id) as like_count,
              (SELECT COUNT(*) FROM moment_comments WHERE moment_id = m.id) as comment_count,
              EXISTS(SELECT 1 FROM moment_likes WHERE moment_id = m.id AND user_id = $1) as is_liked
@@ -141,7 +157,7 @@ momentRoutes.post('/', async (req, res) => {
     `, [id, userId, content || '', imagesJson, video_url || '', location || '', is_anonymous || false, anonymousName, now]);
 
     const moment = await get(`
-      SELECT m.*, u.nickname, u.avatar_url, u.user_tier,
+      SELECT m.*, u.nickname, u.avatar_url, u.avatar_data, u.user_tier,
              0 as like_count, 0 as comment_count, false as is_liked
       FROM moments m
       JOIN users u ON m.user_id = u.id
@@ -204,7 +220,7 @@ momentRoutes.post('/:momentId/like', async (req, res) => {
       // Create notification for moment owner (if not self-like)
       if (moment.user_id !== userId) {
         const liker = await get('SELECT nickname FROM users WHERE id = $1', [userId]);
-        const notification = await createNotification(
+        await createNotification(
           moment.user_id,
           'moment_like',
           '有人赞了你的动态',

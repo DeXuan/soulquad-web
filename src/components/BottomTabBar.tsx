@@ -3,11 +3,11 @@ import { useState, useEffect } from 'react';
 import { api } from '../services/api';
 
 const TABS = [
-  { path: '/discover', label: '发现', icon: '🔍' },
-  { path: '/messages', label: '消息', icon: '💬' },
-  { path: '/moments', label: '动态', icon: '📝' },
-  { path: '/leaderboard', label: '排行', icon: '🏆' },
-  { path: '/profile', label: '我的', icon: '👤' },
+  { path: '/discover', label: '发现', icon: '🔍', matchPaths: ['/discover'] },
+  { path: '/messages', label: '消息', icon: '💬', matchPaths: ['/messages', '/chat'] },
+  { path: '/moments', label: '动态', icon: '📝', matchPaths: ['/moments'] },
+  { path: '/leaderboard', label: '排行', icon: '🏆', matchPaths: ['/leaderboard'] },
+  { path: '/profile', label: '我的', icon: '👤', matchPaths: ['/profile', '/dashboard'] },
 ];
 
 export function BottomTabBar() {
@@ -27,23 +27,8 @@ export function BottomTabBar() {
     }
   };
 
-  const isActive = (path: string) => {
-    if (path === '/discover') {
-      return location.pathname === '/discover';
-    }
-    if (path === '/moments') {
-      return location.pathname.startsWith('/moments');
-    }
-    if (path === '/messages') {
-      return location.pathname.startsWith('/messages') || location.pathname.startsWith('/chat');
-    }
-    if (path === '/leaderboard') {
-      return location.pathname === '/leaderboard';
-    }
-    if (path === '/profile') {
-      return location.pathname.startsWith('/profile') || location.pathname === '/dashboard';
-    }
-    return location.pathname === path;
+  const isActive = (tab: typeof TABS[number]) => {
+    return tab.matchPaths.some(p => location.pathname.startsWith(p));
   };
 
   return (
@@ -52,7 +37,7 @@ export function BottomTabBar() {
         <Link
           key={tab.path}
           to={tab.path}
-          className={`bottom-tab-item ${isActive(tab.path) ? 'active' : ''}`}
+          className={`bottom-tab-item ${isActive(tab) ? 'active' : ''}`}
         >
           <div className="bottom-tab-icon">
             <span>{tab.icon}</span>

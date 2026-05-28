@@ -8,7 +8,7 @@ export function Moments() {
   const navigate = useNavigate();
   const [moments, setMoments] = useState<Moment[]>([]);
   const [loading, setLoading] = useState(true);
-  const [page, setPage] = useState(1);
+  const [, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
@@ -23,12 +23,12 @@ export function Moments() {
     loadMoments();
   }, []);
 
-  const loadMoments = async (isLoadMore = false) => {
+  const loadMoments = async (pageNum?: number) => {
     try {
-      if (!isLoadMore) setPage(1);
-      const p = isLoadMore ? page : 1;
+      const p = pageNum ?? 1;
+      if (p === 1) setPage(1);
       const data = await api.getMoments(p, 20);
-      if (isLoadMore) {
+      if (p > 1) {
         setMoments(prev => [...prev, ...data.moments]);
       } else {
         setMoments(data.moments);
@@ -43,8 +43,11 @@ export function Moments() {
 
   const handleLoadMore = () => {
     if (!loading && hasMore) {
-      setPage(prev => prev + 1);
-      loadMoments(true);
+      setPage(prev => {
+        const nextPage = prev + 1;
+        loadMoments(nextPage);
+        return nextPage;
+      });
     }
   };
 
@@ -181,19 +184,22 @@ export function Moments() {
                       width: '48px',
                       height: '48px',
                       borderRadius: '50%',
-                      background: moment.user?.soul_quadrant
-                        ? getQuadrantStyle(moment.user.soul_quadrant)
-                        : 'var(--gradient-primary)',
+                      background: moment.user?.avatar_data
+                        ? `url(${moment.user.avatar_data}) center/cover`
+                        : moment.user?.soul_quadrant
+                          ? getQuadrantStyle(moment.user.soul_quadrant)
+                          : 'var(--gradient-primary)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
                       fontSize: '1.25rem',
                       fontWeight: 600,
                       cursor: 'pointer',
-                      flexShrink: 0
+                      flexShrink: 0,
+                      color: moment.user?.avatar_data ? 'transparent' : 'white'
                     }}
                   >
-                    {moment.user?.nickname?.[0] || '?'}
+                    {moment.user?.avatar_data ? '' : (moment.user?.nickname?.[0] || '?')}
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>

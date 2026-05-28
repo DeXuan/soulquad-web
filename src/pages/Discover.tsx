@@ -34,7 +34,6 @@ export function Discover() {
   const [filters, setFilters] = useState<FilterParams>({});
 
   useEffect(() => {
-    loadUsers();
     loadCities();
   }, []);
 

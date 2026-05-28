@@ -37,17 +37,21 @@ export function Dashboard() {
       const matchList = await api.getMatches();
       setMatches(matchList);
 
-      const userMap: Record<string, User> = {};
-      for (const match of matchList) {
-        if (match.user_a_liked && match.user_b_liked) {
+      const mutualMatches = matchList.filter(m => m.mutual_liked);
+      const userEntries = await Promise.all(
+        mutualMatches.map(async (match) => {
           const otherUserId = match.oder_a_id === user?.id ? match.oder_b_id : match.oder_a_id;
           try {
             const otherUser = await api.getUser(otherUserId);
-            userMap[match.id] = otherUser;
+            return [match.id, otherUser] as const;
           } catch {
-            // ignore
+            return null;
           }
-        }
+        })
+      );
+      const userMap: Record<string, User> = {};
+      for (const entry of userEntries) {
+        if (entry) userMap[entry[0]] = entry[1];
       }
       setMatchUsers(userMap);
     } catch (err) {

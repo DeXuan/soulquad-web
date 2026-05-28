@@ -42,14 +42,14 @@ export function NotificationBell() {
     await api.markNotificationRead(id);
     setCount(prev => Math.max(0, prev - 1));
     setNotifications(prev =>
-      prev.map(n => n.id === id ? { ...n, read: true } : n)
+      prev.map(n => n.id === id ? { ...n, is_read: true } : n)
     );
   };
 
   const markAllAsRead = async () => {
     await api.markAllNotificationsRead();
     setCount(0);
-    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+    setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
   };
 
   const getNotificationIcon = (type: string) => {
@@ -142,11 +142,11 @@ export function NotificationBell() {
             notifications.map(n => (
               <div
                 key={n.id}
-                onClick={() => !n.read && markAsRead(n.id)}
+                onClick={() => !n.is_read && markAsRead(n.id)}
                 style={{
                   padding: '0.75rem 1rem',
                   borderBottom: '1px solid var(--border)',
-                  background: n.read ? 'transparent' : 'rgba(99, 102, 241, 0.1)',
+                  background: n.is_read ? 'transparent' : 'rgba(99, 102, 241, 0.1)',
                   cursor: 'pointer'
                 }}
               >

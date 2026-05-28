@@ -7,11 +7,11 @@ let pool = null;
 
 export async function initDb() {
   pool = new Pool({
-    host: process.env.PG_HOST || '47.116.77.67',
+    host: process.env.PG_HOST || 'localhost',
     port: process.env.PG_PORT || 5432,
     database: process.env.PG_DATABASE || 'soulquad',
     user: process.env.PG_USER || 'soulquad_user',
-    password: process.env.PG_PASSWORD || 'SoulQuad2024!',
+    password: process.env.PG_PASSWORD,
   });
 
   // Test connection
@@ -149,6 +149,10 @@ async function createTables() {
       'ALTER TABLE users ADD COLUMN IF NOT EXISTS annual_income INTEGER DEFAULT 0',
       'ALTER TABLE users ADD COLUMN IF NOT EXISTS city VARCHAR(100) DEFAULT \'\'',
       'ALTER TABLE users ADD COLUMN IF NOT EXISTS last_active TIMESTAMP',
+      'ALTER TABLE users ADD COLUMN IF NOT EXISTS has_house BOOLEAN DEFAULT NULL',
+      'ALTER TABLE users ADD COLUMN IF NOT EXISTS has_car BOOLEAN DEFAULT NULL',
+      "ALTER TABLE users ADD COLUMN IF NOT EXISTS purpose VARCHAR(50) DEFAULT ''",
+      "ALTER TABLE users ADD COLUMN IF NOT EXISTS mode VARCHAR(50) DEFAULT ''",
       'ALTER TABLE moments ADD COLUMN IF NOT EXISTS is_anonymous BOOLEAN DEFAULT false',
       "ALTER TABLE moments ADD COLUMN IF NOT EXISTS anonymous_name VARCHAR(50) DEFAULT ''"
     ];

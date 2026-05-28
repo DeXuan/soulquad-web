@@ -29,21 +29,25 @@ export function AvatarUpload({ currentAvatar, onUpload }: AvatarUploadProps) {
     setError('');
     setUploading(true);
 
-    try {
-      const reader = new FileReader();
-      reader.onload = async (event) => {
-        const avatarData = event.target?.result as string;
-        setPreview(avatarData);
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      const avatarData = event.target?.result as string;
+      setPreview(avatarData);
 
+      try {
         const result = await api.uploadAvatar(avatarData);
         onUpload?.(result.avatar_data);
-      };
-      reader.readAsDataURL(file);
-    } catch (err) {
-      setError('上传失败，请重试');
-    } finally {
+      } catch {
+        setError('上传失败，请重试');
+      } finally {
+        setUploading(false);
+      }
+    };
+    reader.onerror = () => {
+      setError('文件读取失败');
       setUploading(false);
-    }
+    };
+    reader.readAsDataURL(file);
   };
 
   return (

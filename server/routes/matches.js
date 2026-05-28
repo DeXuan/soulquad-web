@@ -224,55 +224,59 @@ matchRoutes.get('/potential', async (req, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    // Get all passed/liked users
-    const userMatches = await all(`
-      SELECT * FROM matches
-      WHERE oder_a_id = $1 OR oder_b_id = $1
-    `, [userId]);
+    // Build SQL query with filters applied at database level
+    let sql = `
+      SELECT u.* FROM users u
+      WHERE u.profile_completed = true
+        AND u.id != $1
+        AND u.id NOT IN (
+          SELECT CASE WHEN oder_a_id = $1 THEN oder_b_id ELSE oder_a_id END
+          FROM matches WHERE oder_a_id = $1 OR oder_b_id = $1
+        )
+        AND u.id NOT IN (
+          SELECT blocked_user_id FROM user_blocklist WHERE user_id = $1
+        )
+    `;
+    const params = [userId];
+    let paramIdx = 2;
 
-    const passedUserIds = new Set();
-    userMatches.forEach(m => {
-      if (m.oder_a_id === userId) passedUserIds.add(m.oder_b_id);
-      if (m.oder_b_id === userId) passedUserIds.add(m.oder_a_id);
-    });
-
-    // Get blocked users
-    const blockedUsers = await all(`
-      SELECT blocked_user_id FROM user_blocklist WHERE user_id = $1
-    `, [userId]);
-    blockedUsers.forEach(b => passedUserIds.add(b.blocked_user_id));
-
-    // Get potential users
-    let allUsers = await all('SELECT * FROM users WHERE profile_completed = true AND id != $1', [userId]);
-
-    // Filter out passed/blocked users
-    allUsers = allUsers.filter(u => !passedUserIds.has(u.id));
-
-    // Apply location filter
+    // Location filter
     if (location_mode === 'city' && city_code) {
-      // city_code now contains city name (passed from frontend as selectedCity.name)
-      allUsers = allUsers.filter(u => u.city && u.city.includes(city_code));
+      sql += ` AND u.city ILIKE $${paramIdx}`;
+      params.push(`%${city_code}%`);
+      paramIdx++;
     }
 
-    // Apply gender filter
+    // Gender filter
     if (gender && gender !== 'all') {
-      allUsers = allUsers.filter(u => u.gender === gender);
+      sql += ` AND u.gender = $${paramIdx}`;
+      params.push(gender);
+      paramIdx++;
     }
 
-    // Apply age filter
+    // Age filters
     if (age_min) {
-      allUsers = allUsers.filter(u => u.age && u.age >= parseInt(age_min));
+      sql += ` AND u.age >= $${paramIdx}`;
+      params.push(parseInt(age_min));
+      paramIdx++;
     }
     if (age_max) {
-      allUsers = allUsers.filter(u => u.age && u.age <= parseInt(age_max));
+      sql += ` AND u.age <= $${paramIdx}`;
+      params.push(parseInt(age_max));
+      paramIdx++;
     }
 
-    // Apply education filter
+    // Education filter
     if (education && education !== '不限') {
-      allUsers = allUsers.filter(u => u.education === education);
+      sql += ` AND u.education = $${paramIdx}`;
+      params.push(education);
+      paramIdx++;
     }
 
-    // Apply profile visibility filter
+    // Fetch filtered candidates from DB
+    let allUsers = await all(sql, params);
+
+    // Apply profile visibility filter (tier-based, requires in-memory comparison)
     const visibleUsers = allUsers.filter(u => canSeeProfile(currentUser, u));
 
     // Rank users with multi-factor scoring
@@ -283,16 +287,10 @@ matchRoutes.get('/potential', async (req, res) => {
 
     // Return top 20 with ranking info
     const top20 = qualifiedUsers.slice(0, 20).map(u => {
-      const { _soulIndex, _qualityScore, _recencyBoost, _finalScore, password_hash, ...rest } = u;
+      const { _soulIndex, _qualityScore, _recencyBoost, _finalScore, password_hash, password_salt, ...rest } = u;
       return {
         ...rest,
-        soulmate_index: _soulIndex,
-        _debug: {
-          soulScore: _soulIndex,
-          qualityScore: _qualityScore,
-          recencyBoost: _recencyBoost,
-          finalScore: _finalScore
-        }
+        soulmate_index: _soulIndex
       };
     });
 
@@ -337,9 +335,9 @@ matchRoutes.post('/like/:userId', async (req, res) => {
         VALUES ($1, $2, $3, $4, $5, $6, $7)
       `, [matchId, userId, targetId, soulIndex, true, false, now]);
 
-      await createNotification(targetId, 'like', '有人喜欢你', `${currentUser.nickname} 对你发送了喜欢`, { userId });
-
       match = await get('SELECT * FROM matches WHERE id = $1', [matchId]);
+
+      await createNotification(targetId, 'like', '有人喜欢你', `${currentUser.nickname} 对你发送了喜欢`, { userId, matchId: match.id, targetUserId: userId });
     } else {
       const isUserA = match.oder_a_id === userId;
       const field = isUserA ? 'user_a_liked' : 'user_b_liked';
@@ -354,10 +352,10 @@ matchRoutes.post('/like/:userId', async (req, res) => {
       }
 
       match = await get('SELECT * FROM matches WHERE id = $1', [match.id]);
-    }
 
-    // Include matchId in the liked notification so user can navigate to chat
-    await createNotification(targetId, 'like', '有人喜欢你', `${currentUser.nickname} 对你发送了喜欢`, { userId, matchId: match.id, targetUserId: userId });
+      // Only send like notification for existing matches (new match notification already sent above)
+      await createNotification(targetId, 'like', '有人喜欢你', `${currentUser.nickname} 对你发送了喜欢`, { userId, matchId: match.id, targetUserId: userId });
+    }
 
     if (matchedNow) {
       await query('UPDATE users SET match_count = match_count + 1 WHERE id = $1', [userId]);

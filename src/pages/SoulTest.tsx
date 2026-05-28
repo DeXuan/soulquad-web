@@ -568,7 +568,7 @@ export function SoulTest() {
         </div>
 
         <button
-          onClick={() => setStep('complete')}
+          onClick={handleSubmit}
           disabled={loading}
           style={{
             width: '100%',

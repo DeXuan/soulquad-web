@@ -38,6 +38,7 @@ export function useAuth() {
 
   const logout = useCallback(() => {
     localStorage.removeItem('soulquad_token');
+    localStorage.removeItem('soulquad_user');
     setUser(null);
   }, []);
 
